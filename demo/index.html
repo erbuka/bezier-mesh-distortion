@@ -45,7 +45,7 @@
                 gridSize: 20,
                 mode: "bezier",
                 linkCorners: true,
-                texture: "texture.jpg",
+                texture: "texture0.jpg",
                 gridColor: "#999999",
                 handleColor: "#0088ff",
             };
@@ -70,6 +70,7 @@
             let changeHandler = () => bezierDistortion.reset(options);
 
             gui.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
+            gui.add(options, "texture", ["texture0.jpg", "texture1.jpg", "texture2.jpg"]).onChange(changeHandler).listen();
             gui.add(options, "linkCorners").onChange(changeHandler).listen();
             gui.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
             gui.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
