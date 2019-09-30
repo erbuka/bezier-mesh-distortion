@@ -2,11 +2,24 @@
 (function (exportObj, exportName) {
     "use strict";
 
-
+    /**
+     * Creates a new instance
+     * @constructor
+     * @param {object} options
+     * @param {string} options.container The selector for the canvas container
+     * @param {number} [options.aspectRatio] The initial aspect ratio of the plane.
+     * @param {number} [options.gridSize] The number of subdivisions.
+     * @param {string} [options.zoom] Camera zoom.
+     * @param {string} [options.gridColor] Color used for grid lines and grid points.
+     * @param {boolean} [options.linkCorners] Link or not the anchors to the control points.
+     * @param {"bezier"|"linear"} [options.mode] Interpolation mode
+     * @param {string} [options.texture] The url of the texture to be used
+     */
     class BezierMeshProjection {
         constructor(options) {
 
             this.options = Object.assign({
+                container: null,
                 aspectRatio: 1,
                 gridSize: 20,
                 zoom: 0.7,
@@ -22,8 +35,11 @@
             this.loop();
         }
 
+        /**
+         * Saves the current configuration so it can be restored later
+         * @returns {object} The current configuration
+         */
         save() {
-
             return {
                 options: Object.assign({}, this.options),
                 controlPoints: this.controlPoints.map(c => {
@@ -32,6 +48,10 @@
             }
         }
 
+        /**
+         * Restores the given configuration
+         * @param {object} savedInstance The configuration to be restored
+         */
         restore(savedInstance) {
             for (let i = 0; i < this.controlPoints.length; i++) {
                 let c = savedInstance.controlPoints[i];
@@ -40,6 +60,16 @@
             this.reset(savedInstance.options);
         }
 
+        /**
+         * Change the current configuration.
+         * @param {object} options 
+         * @param {number} [options.gridSize] The number of subdivisions.
+         * @param {string} [options.zoom] Camera zoom.
+         * @param {string} [options.gridColor] Color used for grid lines and grid points.
+         * @param {boolean} [options.linkCorners] Link or not the anchors to the control points.
+         * @param {"bezier"|"linear"} [options.mode] Interpolation mode
+         * @param {string} [options.texture] The url of the texture to be used
+         */
         reset(options) {
 
             let reloadTexture = this.options.texture !== options.texture;
@@ -199,6 +229,10 @@
 
         }
 
+        /**
+         * Called after the component is constructed.
+         * @private
+         */
         initialize() {
 
 
@@ -285,6 +319,13 @@
             window.addEventListener("mouseup", this.mouseup.bind(this));
         }
 
+        /**
+         * Links a dom element to a control point so it can be moved
+         * @private
+         * @param {string} selector 
+         * @param {THREE.Vector3} pointRef 
+         * @returns {object} The handle
+         */
         linkHandle(selector, pointRef) {
             let element = this.container.querySelector(selector);
 
@@ -325,6 +366,12 @@
 
         }
 
+        /**
+         * Computes the Bernsetin polinomial of grade 3
+         * @private
+         * @param {number} i Index 
+         * @param {number} t Curve parameter
+         */
         computeBernsteinBasis3(i, t) {
             let tt = t * t;
             let ttt = tt * t;
@@ -344,7 +391,10 @@
                     throw new Error("Invalid index for B3: " + i);
             }
         }
-
+        /**
+         * Main loop
+         * @private
+         */
         loop() {
             window.requestAnimationFrame(this.loop.bind(this));
 
@@ -358,6 +408,13 @@
             this.renderer.render(this.scene, this.camera);
         }
 
+        /**
+         * Computes a weighted average of the given vector array
+         * @private
+         * @param {THREE.Vector3[]} p The points
+         * @param {number[]} w The weights
+         * @param {number} [f] Global factor
+         */
         weightedAverage(p, w, f) {
             if (p.length != w.length)
                 throw new Error("weightedAverage(): invalid parameters");
@@ -372,6 +429,12 @@
             return vRes.multiplyScalar(f);
         }
 
+        /**
+         * Computes a point of the mesh using Bezier interpolation (16 control points)
+         * @private
+         * @param {*} u Normalized u coorindate
+         * @param {*} v Normalized v coordinate
+         */
         computeBezierGridPoint(u, v) {
             let pRes = this._buffers.vec3[0].set(0, 0, 0);
             let p0 = this._buffers.vec3[1];
@@ -384,6 +447,12 @@
             return pRes;
         }
 
+        /**
+         * Computes a point of the mesh using linear interpolation (only the 4 corner points)
+         * @private
+         * @param {*} u Normalized u coorindate
+         * @param {*} v Normalized v coordinate
+         */
         computeLinearGridPoint(u, v) {
             let v0 = this._buffers.vec3[0].copy(this.controlPoints[0]);
             let v1 = this._buffers.vec3[1].copy(this.controlPoints[12]);
@@ -394,6 +463,10 @@
             return v0.lerp(v1, v);
         }
 
+        /**
+         * Updates all the meshes
+         * @private
+         */
         updateMeshes() {
             const gs = this.options.gridSize;
 
@@ -448,7 +521,10 @@
                 handleLinesPositions.needsUpdate = true;
             }
         }
-
+        /**
+         * Updates the projection matrix
+         * @private
+         */
         updateProjectionMatrix() {
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let z = 1 / this.options.zoom;
@@ -459,13 +535,22 @@
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();
-        }
+        }   
 
+        /**
+         * Updates the size of the renderer and the projection matrix
+         * @private
+         */
         reshape() {
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.updateProjectionMatrix();
         }
 
+        /**
+         * Computes the middle control points of the Bezier patch based on the other 12 control
+         * points
+         * @private
+         */
         updateMidControlPoints() {
             let cp = this.controlPoints;
 
@@ -490,12 +575,21 @@
             ));
         }
 
+        /**
+         * Updates the handle positions
+         * @private
+         */
         updateHandles() {
             for (let h in this.handles) {
                 this.handles[h].reposition();
             }
         }
 
+        /**
+         * Mouse move handle of the canvas
+         * @private
+         * @param {MouseEvent} evt 
+         */
         mousemove(evt) {
             if (this.selectedHandle && evt.target === this.renderer.domElement) {
 
@@ -524,16 +618,35 @@
             }
         }
 
+        /**
+         * Mouse up event handler for window
+         * @private
+         * @param {MouseEvent} evt 
+         */
         mouseup(evt) {
             this.selectedHandle = null;
         }
 
+        /**
+         * Computes the world coordinates given the screen coordinates relative to the canvas
+         * @private
+         * @param {number} x X position 
+         * @param {number} y Y position
+         * @returns {Vector3} The position in world coordinates
+         */
         screenToWorld(x, y) {
             x = (x / this.container.clientWidth) * 2 - 1;
             y = ((this.container.clientHeight - y) / this.container.clientHeight) * 2 - 1;
             return new THREE.Vector3(x, y, 0).unproject(this.camera);
         }
 
+        /**
+         * Computes the position in screen coordinates relative to the canvas given the
+         * world coordinates
+         * @private
+         * @param {THREE.Vector3} v The position in world coordinates
+         * @returns {THREE.Vector2} The position in screen coordintes
+         */
         worldToScreen(v) {
             let uv = this._buffers.vec3[0].copy(v).project(this.camera);
             return new THREE.Vector2(
