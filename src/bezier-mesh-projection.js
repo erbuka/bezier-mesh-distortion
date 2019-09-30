@@ -358,9 +358,9 @@
             this.renderer.render(this.scene, this.camera);
         }
 
-        weightedAvergate(p, w, f) {
+        weightedAverage(p, w, f) {
             if (p.length != w.length)
-                throw new Error("weightedAvergate(): invalid parameters");
+                throw new Error("weightedAverage(): invalid parameters");
 
             f = f || 1;
 
@@ -469,22 +469,22 @@
         updateMidControlPoints() {
             let cp = this.controlPoints;
 
-            cp[5].copy(this.weightedAvergate(
+            cp[5].copy(this.weightedAverage(
                 [cp[4], cp[1], cp[8], cp[13], cp[2], cp[7]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
             ));
 
-            cp[6].copy(this.weightedAvergate(
+            cp[6].copy(this.weightedAverage(
                 [cp[2], cp[7], cp[4], cp[1], cp[14], cp[11]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
             ));
 
-            cp[9].copy(this.weightedAvergate(
+            cp[9].copy(this.weightedAverage(
                 [cp[8], cp[13], cp[4], cp[1], cp[14], cp[11]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
             ));
 
-            cp[10].copy(this.weightedAvergate(
+            cp[10].copy(this.weightedAverage(
                 [cp[14], cp[11], cp[2], cp[7], cp[8], cp[13]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
             ));
