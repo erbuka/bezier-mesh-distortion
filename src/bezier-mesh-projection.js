@@ -10,6 +10,36 @@
             buffers.vec3.push(new THREE.Vector3());
     }
 
+    class Textures {
+        constructor() {
+            this.loader = new THREE.TextureLoader();
+            this.texturesMap = {};
+        }
+
+        load(url) {
+            return new Promise((resolve, reject) => {
+
+                if (!url)
+                    resolve(null);
+
+                if (this.texturesMap[url]) {
+                    resolve(this.texturesMap[url]);
+                } else {
+                    this.texturesMap[url] = this.loader.load(url, (tex) => {
+                        resolve(tex);
+                    }, undefined, err => reject(err));
+                }
+            });
+        }
+
+        clear() {
+            for (let t in this.texturesMap)
+                this.texturesMap[t].dispose();
+            this.texturesMap = {};
+        }
+
+    }
+
     class Util {
         /**
          * Computes the Bernsetin polinomial of grade 3
@@ -72,8 +102,6 @@
         }
 
         move(x, y, linkAnchors) {
-            let e = this.domElement;
-
             let offset = this.ownerProjection.screenToWorld(x, y).sub(this.point);
 
             this.point.add(offset);
@@ -91,8 +119,9 @@
 
         reposition() {
             let screenPos = this.ownerProjection.worldToScreen(this.point);
-            this.domElement.style.left = screenPos.x + "px";
-            this.domElement.style.top = screenPos.y + "px";
+            let rect = this.domElement.getBoundingClientRect();
+            this.domElement.style.left = (screenPos.x - rect.width / 2) + "px";
+            this.domElement.style.top = (screenPos.y - rect.height / 2) + "px";
         }
 
         setChild(index, childHandle) {
@@ -255,7 +284,7 @@
     class BezierMeshProjection {
         constructor(options) {
 
-            this.options = Object.assign({
+            this.options = {
                 container: null,
                 aspectRatio: 1,
                 gridSize: 20,
@@ -263,10 +292,12 @@
                 gridColor: "#666666",
                 handleColor: "#0088ff",
                 mode: "bezier",
-                texture: null
-            }, options);
+                texture: null,
+                background: null,
+                preview: false
+            }
 
-            this.initialize();
+            this.initialize(options.container, options.aspectRatio);
             this.reset(options);
             this.loop();
         }
@@ -298,8 +329,6 @@
          */
         reset(options) {
 
-            let reloadTexture = this.options.texture !== options.texture;
-
             Object.assign(this.options, options);
 
             const gs = this.options.gridSize;
@@ -320,6 +349,28 @@
             this.gridPoints = new Array((gs + 1) * (gs + 1));
             for (let i = 0; i < this.gridPoints.length; i++)
                 this.gridPoints[i] = new THREE.Vector3();
+
+            // Create background plane
+            {
+
+                this.textures.load(this.options.background).then(tex => {
+                    let planeGeom = new THREE.PlaneGeometry(
+                        tex.image.width / tex.image.height * 2 / this.options.zoom,
+                        2 / this.options.zoom
+                    );
+
+                    planeGeom.translate(0, 0, -0.1);
+
+                    this.meshes.backgroundPlane = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({
+                        color: 0xffffff,
+                        map: tex
+                    }));
+
+                    this.scene.add(this.meshes.backgroundPlane);
+
+                });
+
+            }
 
             // Create plane mesh
             {
@@ -354,15 +405,6 @@
                     }
                 }
 
-                if (options.texture === null) {
-                    this.texture = null;
-                } else {
-                    if (this.texture == null || reloadTexture) {
-                        let loader = new THREE.TextureLoader();
-                        this.texture = loader.load(this.options.texture);
-                    }
-                }
-
                 let planeGeom = new THREE.BufferGeometry();
 
                 planeGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
@@ -372,11 +414,17 @@
 
 
                 this.meshes.plane = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({
-                    color: 0xffffff,
-                    map: this.texture
+                    color: 0xffffff
                 }));
 
                 this.scene.add(this.meshes.plane);
+
+                this.textures.load(this.options.texture).then((tex) => {
+                    this.meshes.plane.material.map = tex;
+                    this.meshes.plane.material.transparent = true;
+                    this.meshes.plane.material.needsUpdate = true;
+                });
+
 
             }
 
@@ -388,7 +436,12 @@
 
                 dotsGeom.addAttribute("position", new THREE.BufferAttribute(dotsPositions, 3));
 
-                let dots = new THREE.Points(dotsGeom, new THREE.PointsMaterial({ color: this.options.gridColor, size: 4 }));
+                let dots = new THREE.Points(dotsGeom, new THREE.PointsMaterial({
+                    color: this.options.gridColor,
+                    size: 4,
+                    opacity: 0.5,
+                    transparent: true
+                }));
 
                 this.scene.add(dots);
 
@@ -416,7 +469,12 @@
                 linesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
                 linesGeom.setIndex(indices);
 
-                this.meshes.gridLines = new THREE.LineSegments(linesGeom, new THREE.LineBasicMaterial({ color: this.options.gridColor, linewidth: 1 }));
+                this.meshes.gridLines = new THREE.LineSegments(linesGeom, new THREE.LineBasicMaterial({
+                    color: this.options.gridColor,
+                    linewidth: 1,
+                    opacity: 0.5,
+                    transparent: true
+                }));
                 this.scene.add(this.meshes.gridLines);
 
             }
@@ -434,6 +492,13 @@
 
             }
 
+            this.meshes.gridDots.visible = !this.options.preview;
+            this.meshes.handleLines.visible = !this.options.preview;
+            this.meshes.gridLines.visible = !this.options.preview;
+
+            this.handles.forEach(h => {
+                h.domElement.style.display = this.options.preview ? "none" : null;
+            });
 
             this.reshape();
 
@@ -443,23 +508,23 @@
          * Called after the component is constructed.
          * @private
          */
-        initialize() {
+        initialize(container, aspectRatio) {
 
             // Main container
-            this.container = document.querySelector(this.options.container);
+            this.container = document.querySelector(container);
 
 
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
-            this.texture = null;
+            this.textures = new Textures;
 
             // Create initial patch
             {
 
-                let bl = buffers.vec3[0].set(-1 * this.options.aspectRatio, -1, 0);
-                let br = buffers.vec3[1].set(+1 * this.options.aspectRatio, -1, 0);
-                let tl = buffers.vec3[2].set(-1 * this.options.aspectRatio, +1, 0);
-                let tr = buffers.vec3[3].set(+1 * this.options.aspectRatio, +1, 0);
+                let bl = buffers.vec3[0].set(-1 * aspectRatio, -1, 0);
+                let br = buffers.vec3[1].set(+1 * aspectRatio, -1, 0);
+                let tl = buffers.vec3[2].set(-1 * aspectRatio, +1, 0);
+                let tr = buffers.vec3[3].set(+1 * aspectRatio, +1, 0);
 
                 let cp = BezierPatch.controlPointsFromCorners(tl, tr, bl, br);
 
@@ -470,7 +535,7 @@
 
             // Add window listeners + dom elements
             this.container.appendChild(this.renderer.domElement);
-            this.container.addEventListener("mousemove", this.mousemove.bind(this), false);
+            this.container.addEventListener("mousemove", this.mousemove.bind(this));
             this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
             window.addEventListener("resize", this.reshape.bind(this));
             window.addEventListener("mouseup", this.mouseup.bind(this));
@@ -553,7 +618,9 @@
 
                         linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] = dotsPositions.array[bufIdx + 0] = this.gridPoints[idx].x;
                         linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] = dotsPositions.array[bufIdx + 1] = this.gridPoints[idx].y;
-                        linesPositions.array[bufIdx + 2] = planePositions.array[bufIdx + 2] = dotsPositions.array[bufIdx + 2] = this.gridPoints[idx].z;
+                        linesPositions.array[bufIdx + 2] = 0.01;
+                        planePositions.array[bufIdx + 2] = 0;
+                        dotsPositions.array[bufIdx + 2] = 0.01;
                     }
                 }
 
@@ -574,11 +641,11 @@
 
                     linesPositions.array[count * 3 + 0] = h.point.x;
                     linesPositions.array[count * 3 + 1] = h.point.y;
-                    linesPositions.array[count * 3 + 2] = h.point.z;
+                    linesPositions.array[count * 3 + 2] = 0.02;
 
                     linesPositions.array[count * 3 + 3] = h.parent.point.x;
                     linesPositions.array[count * 3 + 4] = h.parent.point.y;
-                    linesPositions.array[count * 3 + 5] = h.parent.point.z;
+                    linesPositions.array[count * 3 + 5] = 0.02;
 
                     count += 2;
 
@@ -623,8 +690,17 @@
          * @param {MouseEvent} evt 
          */
         mousemove(evt) {
-            if (this.selectedHandle && evt.target === this.renderer.domElement) {
-                let [mx, my] = [evt.offsetX, evt.offsetY];
+            let [mx, my] = [evt.offsetX, evt.offsetY];
+            let t = evt.target;
+            if (this.selectedHandle) {
+                if (t !== this.renderer.domElement) {
+                    // it's an handle
+                    let rect = t.getBoundingClientRect();
+                    mx += t.offsetLeft
+                    my += t.offsetTop;
+                }
+                console.log(t, mx, my);
+
                 this.selectedHandle.move(mx, my, this.selectedHandle.mirrorChildren);
             }
         }

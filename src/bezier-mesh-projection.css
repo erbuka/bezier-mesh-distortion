@@ -6,9 +6,8 @@
 
 .bm-canvas .bm-handle {
   position: absolute;
-  width: 16px;
-  height: 16px;
-  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   z-index: 1;
 }
