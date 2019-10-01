@@ -2,7 +2,243 @@
 (function (exportObj, exportName) {
     "use strict";
 
+    // Temporary buffers (for memory reuse/efficency)
+    let buffers = {};
+    {
+        buffers.vec3 = [];
+        for (let i = 0; i < 16; i++)
+            buffers.vec3.push(new THREE.Vector3());
+    }
 
+    class Util {
+        /**
+         * Computes the Bernsetin polinomial of grade 3
+         * @param {number} i Index 
+         * @param {number} t Curve parameter
+         */
+        static computeBernsteinBasis3(i, t) {
+            let tt = t * t;
+            let ttt = tt * t;
+            let mt = 1 - t;
+            let mtt = mt * mt;
+            let mttt = mtt * mt;
+            switch (i) {
+                case 0:
+                    return mttt;
+                case 1:
+                    return 3 * t * mtt;
+                case 2:
+                    return 3 * tt * mt;
+                case 3:
+                    return ttt;
+                default:
+                    throw new Error("Invalid index for B3: " + i);
+            }
+        }
+    }
+
+    class Domain {
+        constructor(u0, v0, u1, v1) {
+            this.u0 = u0;
+            this.u1 = u1;
+            this.v0 = v0;
+            this.v1 = v1;
+        }
+
+        contains(u, v) {
+            return u >= this.u0 && u <= this.v1 && v >= this.v0 && v <= this.v1;
+        }
+
+    }
+
+    class Handle {
+        constructor(ownerProjection, point) {
+            this.point = point;
+            this.ownerProjection = ownerProjection;
+            this.domElement = document.createElement("div");
+            this.parent = null;
+            this.children = [null, null];
+            this.mirrorChildren = false;
+
+            this.domElement.classList.add("bm-handle");
+            this.domElement.addEventListener("mousedown", (evt) => {
+                this.ownerProjection.selectedHandle = this;
+                this.mirrorChildren = evt.button === 2;
+                evt.preventDefault();
+            })
+
+            ownerProjection.container.appendChild(this.domElement);
+
+        }
+
+        move(x, y, linkAnchors) {
+            let e = this.domElement;
+
+            let offset = this.ownerProjection.screenToWorld(x, y).sub(this.point);
+
+            this.point.add(offset);
+
+            this.children[0] ? this.children[0].point.add(offset) : false;
+            this.children[1] ? this.children[1].point.add(offset) : false;
+
+            if (linkAnchors && this.parent) {
+                let otherChild = this.parent.getOtherChild(this);
+                let offset = buffers.vec3[0].copy(this.parent.point).sub(this.point);
+                otherChild.point.copy(this.parent.point).add(offset);
+            }
+
+        }
+
+        reposition() {
+            let screenPos = this.ownerProjection.worldToScreen(this.point);
+            this.domElement.style.left = screenPos.x + "px";
+            this.domElement.style.top = screenPos.y + "px";
+        }
+
+        setChild(index, childHandle) {
+            if (typeof index !== "number" || index < 0 || index >= 2)
+                throw new Error("Invalid child handle parameters");
+
+            this.children[index] = childHandle;
+            childHandle.parent = this;
+        }
+
+        getOtherChild(childHandle) {
+            return this.children[0] === childHandle ? this.children[1] : this.children[0];
+        }
+    }
+
+    class BezierPatch {
+        constructor(ownerProjection, domain, controlPoints) {
+            this.ownerProjection = ownerProjection;
+            this.controlPoints = controlPoints;
+            this.domain = domain;
+        }
+
+        static controlPointsFromCorners(topLeft, topRight, bottomLeft, bottomRight) {
+            let cp = new Array(16);
+
+            let tl = cp[12] = topLeft.clone();
+            let tr = cp[15] = topRight.clone();
+            let bl = cp[0] = bottomLeft.clone();
+            let br = cp[3] = bottomRight.clone();
+
+            cp[1] = bl.clone().lerp(br, 1 / 3);
+            cp[2] = bl.clone().lerp(br, 2 / 3);
+
+            cp[13] = tl.clone().lerp(tr, 1 / 3);
+            cp[14] = tl.clone().lerp(tr, 2 / 3);
+
+            cp[4] = bl.clone().lerp(tl, 1 / 3);
+            cp[8] = bl.clone().lerp(tl, 2 / 3);
+
+            cp[7] = br.clone().lerp(tr, 1 / 3);
+            cp[11] = br.clone().lerp(tr, 2 / 3);
+
+            cp[5] = new THREE.Vector3();
+            cp[6] = new THREE.Vector3();
+            cp[9] = new THREE.Vector3();
+            cp[10] = new THREE.Vector3();
+
+            return cp;
+
+        }
+
+        isSubdivided() {
+            return false;
+        }
+
+        compute(u, v, mode) {
+            if (mode === "linear") {
+                let v0 = buffers.vec3[0].copy(this.controlPoints[0]);
+                let v1 = buffers.vec3[1].copy(this.controlPoints[12]);
+
+                v0.lerp(this.controlPoints[3], u);
+                v1.lerp(this.controlPoints[15], u);
+
+                return v0.lerp(v1, v);
+            } else {
+                let pRes = buffers.vec3[0].set(0, 0, 0);
+                let p0 = buffers.vec3[1];
+                for (let y = 0; y < 4; y++) {
+                    for (let x = 0; x < 4; x++) {
+                        let b = Util.computeBernsteinBasis3(x, u) * Util.computeBernsteinBasis3(y, v);
+                        pRes.add(p0.copy(this.controlPoints[y * 4 + x]).multiplyScalar(b));
+                    }
+                }
+                return pRes;
+            }
+        }
+
+        createHandles() {
+            let topLeft = new Handle(this.ownerProjection, this.controlPoints[12]);
+            let topRight = new Handle(this.ownerProjection, this.controlPoints[15]);
+            let bottomLeft = new Handle(this.ownerProjection, this.controlPoints[0]);
+            let bottomRight = new Handle(this.ownerProjection, this.controlPoints[3]);
+
+            let bottomLeft0 = new Handle(this.ownerProjection, this.controlPoints[1]);
+            let bottomLeft1 = new Handle(this.ownerProjection, this.controlPoints[4]);
+
+            let bottomRight0 = new Handle(this.ownerProjection, this.controlPoints[2]);
+            let bottomRight1 = new Handle(this.ownerProjection, this.controlPoints[7]);
+
+            let topLeft0 = new Handle(this.ownerProjection, this.controlPoints[8]);
+            let topLeft1 = new Handle(this.ownerProjection, this.controlPoints[13]);
+
+            let topRight0 = new Handle(this.ownerProjection, this.controlPoints[14]);
+            let topRight1 = new Handle(this.ownerProjection, this.controlPoints[11]);
+
+            topLeft.setChild(0, topLeft0);
+            topLeft.setChild(1, topLeft1);
+
+            bottomLeft.setChild(0, bottomLeft0);
+            bottomLeft.setChild(1, bottomLeft1);
+
+            topRight.setChild(0, topRight0);
+            topRight.setChild(1, topRight1);
+
+            bottomRight.setChild(0, bottomRight0);
+            bottomRight.setChild(1, bottomRight1);
+
+            let handles = [
+                topLeft, topLeft0, topLeft1,
+                topRight, topRight0, topRight1,
+                bottomLeft, bottomLeft0, bottomLeft1,
+                bottomRight, bottomRight0, bottomRight1
+            ];
+
+            return handles;
+
+        }
+
+        update() {
+            // Compute middle control points
+            let cp = this.controlPoints;
+
+            let x00 = cp[4].clone().lerp(cp[7], 1 / 3).x;
+            let y00 = cp[1].clone().lerp(cp[13], 1 / 3).y;
+
+            let x10 = cp[4].clone().lerp(cp[7], 2 / 3).x;
+            let y10 = cp[2].clone().lerp(cp[14], 1 / 3).y;
+
+            let x11 = cp[8].clone().lerp(cp[11], 2 / 3).x;
+            let y11 = cp[2].clone().lerp(cp[14], 2 / 3).y;
+
+            let x01 = cp[8].clone().lerp(cp[11], 1 / 3).x;
+            let y01 = cp[1].clone().lerp(cp[13], 2 / 3).y;
+
+            cp[5].set(x00, y00, 0);
+            cp[6].set(x10, y10, 0);
+            cp[9].set(x01, y01, 0);
+            cp[10].set(x11, y11, 0);
+        }
+
+        destroy() {
+            for (let h of this.handles)
+                h.destroy();
+        }
+
+    }
 
     /**
      * Creates a new instance
@@ -13,7 +249,6 @@
      * @param {number} [options.gridSize] The number of subdivisions.
      * @param {string} [options.zoom] Camera zoom.
      * @param {string} [options.gridColor] Color used for grid lines and grid points.
-     * @param {boolean} [options.linkCorners] Link or not the anchors to the control points.
      * @param {"bezier"|"linear"} [options.mode] Interpolation mode
      * @param {string} [options.texture] The url of the texture to be used
      */
@@ -27,7 +262,6 @@
                 zoom: 0.7,
                 gridColor: "#666666",
                 handleColor: "#0088ff",
-                linkCorners: true,
                 mode: "bezier",
                 texture: null
             }, options);
@@ -42,12 +276,7 @@
          * @returns {object} The current configuration
          */
         save() {
-            return {
-                options: Object.assign({}, this.options),
-                controlPoints: this.controlPoints.map(c => {
-                    return { x: c.x, y: c.y };
-                })
-            }
+
         }
 
         /**
@@ -55,11 +284,7 @@
          * @param {object} savedInstance The configuration to be restored
          */
         restore(savedInstance) {
-            for (let i = 0; i < this.controlPoints.length; i++) {
-                let c = savedInstance.controlPoints[i];
-                this.controlPoints[i].set(c.x, c.y, 0);
-            }
-            this.reset(savedInstance.options);
+
         }
 
         /**
@@ -68,7 +293,6 @@
          * @param {number} [options.gridSize] The number of subdivisions.
          * @param {string} [options.zoom] Camera zoom.
          * @param {string} [options.gridColor] Color used for grid lines and grid points.
-         * @param {boolean} [options.linkCorners] Link or not the anchors to the control points.
          * @param {"bezier"|"linear"} [options.mode] Interpolation mode
          * @param {string} [options.texture] The url of the texture to be used
          */
@@ -83,13 +307,9 @@
             const n = gs1 * gs1;
             this.meshes = {};
 
-            // update handle colors
-            {
-                let color = new THREE.Color(this.options.handleColor).getHexString();
-                for (let h in this.handles) {
-                    this.handles[h].domElement.style.backgroundColor = "#" + color;
-                }
-            }
+
+            for (let h of this.handles)
+                h.domElement.style.backgroundColor = this.options.handleColor;
 
             // Initialize three.js scene
 
@@ -201,30 +421,18 @@
 
             }
 
-            // Handle lines mesh
+            // Create handle lines mesh
             {
-
-                let indices = [
-                    0, 1,
-                    2, 3,
-                    3, 7,
-                    11, 15,
-                    15, 14,
-                    13, 12,
-                    12, 8,
-                    4, 0
-                ];
+                const vertexCount = 2 * 10000;
 
                 let handleLinesGeom = new THREE.BufferGeometry();
 
-                handleLinesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(16 * 3), 3));
-                handleLinesGeom.setIndex(indices);
+                handleLinesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
 
-                this.meshes.handleLines = new THREE.LineSegments(handleLinesGeom, new THREE.MeshBasicMaterial({ color: this.options.handleColor }));
-
+                this.meshes.handleLines = new THREE.LineSegments(handleLinesGeom, new THREE.LineBasicMaterial({ color: this.options.handleColor }));
                 this.scene.add(this.meshes.handleLines);
-            }
 
+            }
 
 
             this.reshape();
@@ -237,14 +445,6 @@
          */
         initialize() {
 
-
-            // Temporary buffers (for memory reuse/efficency)
-            this._buffers = {
-                vec3: []
-            };
-            for (let i = 0; i < 16; i++)
-                this._buffers.vec3.push(new THREE.Vector3());
-
             // Main container
             this.container = document.querySelector(this.options.container);
 
@@ -253,146 +453,32 @@
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.texture = null;
 
-            // Initialize control points and hanles
-            this.controlPoints = new Array(16);
-            this.handles = {};
+            // Create initial patch
+            {
 
-            for (let i = 0; i < this.controlPoints.length; i++)
-                this.controlPoints[i] = new THREE.Vector3();
+                let bl = buffers.vec3[0].set(-1 * this.options.aspectRatio, -1, 0);
+                let br = buffers.vec3[1].set(+1 * this.options.aspectRatio, -1, 0);
+                let tl = buffers.vec3[2].set(-1 * this.options.aspectRatio, +1, 0);
+                let tr = buffers.vec3[3].set(+1 * this.options.aspectRatio, +1, 0);
 
-            let bl = this._buffers.vec3[0].set(-1 * this.options.aspectRatio, -1, 0);
-            let br = this._buffers.vec3[1].set(+1 * this.options.aspectRatio, -1, 0);
-            let tl = this._buffers.vec3[2].set(-1 * this.options.aspectRatio, +1, 0);
-            let tr = this._buffers.vec3[3].set(+1 * this.options.aspectRatio, +1, 0);
+                let cp = BezierPatch.controlPointsFromCorners(tl, tr, bl, br);
 
-            this.controlPoints[0].copy(bl); // bottom left
-            this.controlPoints[3].copy(br); // bottom right
-            this.controlPoints[12].copy(tl); // top left
-            this.controlPoints[15].copy(tr); // top right
+                this.patch = new BezierPatch(this, new Domain(0, 0, 1, 1), cp);
+                this.handles = this.patch.createHandles();
 
-
-
-            for (let x = 0; x < 4; x++) {
-                for (let y = 0; y < 4; y++) {
-                    this.controlPoints[y * 4 + x].copy(this.computeLinearGridPoint(x / 3, y / 3));
-                }
             }
-
-            this.handles.bottomLeft0 = this.linkHandle(".bm-handle.bm-link-0", this.controlPoints[1]);
-            this.handles.bottomLeft1 = this.linkHandle(".bm-handle.bm-link-1", this.controlPoints[4]);
-
-            this.handles.bottomRight0 = this.linkHandle(".bm-handle.bm-link-2", this.controlPoints[2]);
-            this.handles.bottomRight1 = this.linkHandle(".bm-handle.bm-link-3", this.controlPoints[7]);
-
-            this.handles.topLeft0 = this.linkHandle(".bm-handle.bm-link-4", this.controlPoints[13]);
-            this.handles.topLeft1 = this.linkHandle(".bm-handle.bm-link-5", this.controlPoints[8]);
-
-            this.handles.topRight0 = this.linkHandle(".bm-handle.bm-link-6", this.controlPoints[14]);
-            this.handles.topRight1 = this.linkHandle(".bm-handle.bm-link-7", this.controlPoints[11]);
-
-
-            this.handles.middle0 = this.linkHandle(".bm-handle.bm-middle-0", this.controlPoints[5]);
-            this.handles.middle1 = this.linkHandle(".bm-handle.bm-middle-1", this.controlPoints[6]);
-            this.handles.middle2 = this.linkHandle(".bm-handle.bm-middle-2", this.controlPoints[9]);
-            this.handles.middle3 = this.linkHandle(".bm-handle.bm-middle-3", this.controlPoints[10]);
-
-
-            this.handles.topLeft = this.linkHandle(".bm-handle.bm-top-left", this.controlPoints[12]);
-            this.handles.topLeft.setChild(0, this.handles.topLeft0);
-            this.handles.topLeft.setChild(1, this.handles.topLeft1);
-
-            this.handles.topRight = this.linkHandle(".bm-handle.bm-top-right", this.controlPoints[15]);
-            this.handles.topRight.setChild(0, this.handles.topRight0);
-            this.handles.topRight.setChild(1, this.handles.topRight1);
-
-            this.handles.bottomLeft = this.linkHandle(".bm-handle.bm-bottom-left", this.controlPoints[0]);
-            this.handles.bottomLeft.setChild(0, this.handles.bottomLeft0);
-            this.handles.bottomLeft.setChild(1, this.handles.bottomLeft1);
-
-            this.handles.bottomRight = this.linkHandle(".bm-handle.bm-bottom-right", this.controlPoints[3]);
-            this.handles.bottomRight.setChild(0, this.handles.bottomRight0);
-            this.handles.bottomRight.setChild(1, this.handles.bottomRight1);
 
             // Add window listeners + dom elements
             this.container.appendChild(this.renderer.domElement);
             this.container.addEventListener("mousemove", this.mousemove.bind(this), false);
-
+            this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
             window.addEventListener("resize", this.reshape.bind(this));
             window.addEventListener("mouseup", this.mouseup.bind(this));
-        }
-
-        /**
-         * Links a dom element to a control point so it can be moved
-         * @private
-         * @param {string} selector 
-         * @param {THREE.Vector3} pointRef 
-         * @returns {object} The handle
-         */
-        linkHandle(selector, pointRef) {
-            let element = this.container.querySelector(selector);
-
-            if (!element) {
-                console.warn("Can't find handle selector: " + selector);
-                return;
-            }
-
-            let handle = {
-                pointRef: pointRef,
-                domElement: element,
-                children: [null, null],
-                parent: null,
-                setChild: (index, childHandle) => {
-                    if (typeof index !== "number" || index < 0 || index >= 2)
-                        throw new Error("Invalid child handle parameters");
-
-                    handle.children[index] = childHandle;
-                    childHandle.parent = handle;
-                },
-                getOtherChild: (childHandle) => {
-                    return handle.children[0] === childHandle ? handle.children[1] : handle.children[0];
-                },
-                reposition: () => {
-                    let screenPos = this.worldToScreen(handle.pointRef);
-                    element.style.left = screenPos.x + "px";
-                    element.style.top = screenPos.y + "px";
-                }
-            }
-
-
-            element.addEventListener("mousedown", (evt) => {
-                this.selectedHandle = handle;
-                evt.preventDefault();
-            });
-
-            return handle;
 
         }
 
-        /**
-         * Computes the Bernsetin polinomial of grade 3
-         * @private
-         * @param {number} i Index 
-         * @param {number} t Curve parameter
-         */
-        computeBernsteinBasis3(i, t) {
-            let tt = t * t;
-            let ttt = tt * t;
-            let mt = 1 - t;
-            let mtt = mt * mt;
-            let mttt = mtt * mt;
-            switch (i) {
-                case 0:
-                    return mttt;
-                case 1:
-                    return 3 * t * mtt;
-                case 2:
-                    return 3 * tt * mt;
-                case 3:
-                    return ttt;
-                default:
-                    throw new Error("Invalid index for B3: " + i);
-            }
-        }
+
+
         /**
          * Main loop
          * @private
@@ -401,8 +487,9 @@
             window.requestAnimationFrame(this.loop.bind(this));
 
             this.updateProjectionMatrix();
-            this.updateHandles();
-            this.updateMidControlPoints();
+            for (let h of this.handles)
+                h.reposition();
+            this.updatePatch();
             this.updateMeshes();
 
             this.renderer.clearColor();
@@ -431,38 +518,8 @@
             return vRes.multiplyScalar(f);
         }
 
-        /**
-         * Computes a point of the mesh using Bezier interpolation (16 control points)
-         * @private
-         * @param {*} u Normalized u coorindate
-         * @param {*} v Normalized v coordinate
-         */
-        computeBezierGridPoint(u, v) {
-            let pRes = this._buffers.vec3[0].set(0, 0, 0);
-            let p0 = this._buffers.vec3[1];
-            for (let y = 0; y < 4; y++) {
-                for (let x = 0; x < 4; x++) {
-                    let b = this.computeBernsteinBasis3(x, u) * this.computeBernsteinBasis3(y, v);
-                    pRes.add(p0.copy(this.controlPoints[y * 4 + x]).multiplyScalar(b));
-                }
-            }
-            return pRes;
-        }
-
-        /**
-         * Computes a point of the mesh using linear interpolation (only the 4 corner points)
-         * @private
-         * @param {*} u Normalized u coorindate
-         * @param {*} v Normalized v coordinate
-         */
-        computeLinearGridPoint(u, v) {
-            let v0 = this._buffers.vec3[0].copy(this.controlPoints[0]);
-            let v1 = this._buffers.vec3[1].copy(this.controlPoints[12]);
-
-            v0.lerp(this.controlPoints[3], u);
-            v1.lerp(this.controlPoints[15], u);
-
-            return v0.lerp(v1, v);
+        updatePatch() {
+            this.patch.update();
         }
 
         /**
@@ -472,15 +529,11 @@
         updateMeshes() {
             const gs = this.options.gridSize;
 
-            let computeFn = this.options.mode === "linear" ?
-                this.computeLinearGridPoint.bind(this) :
-                this.computeBezierGridPoint.bind(this);
-
             // Compute grid points
             {
                 for (let x = 0; x < gs + 1; x++) {
                     for (let y = 0; y < gs + 1; y++) {
-                        let point = computeFn(x / gs, y / gs);
+                        let point = this.patch.compute(x / gs, y / gs, this.options.mode);
                         this.gridPoints[y * (gs + 1) + x].copy(point);
                     }
                 }
@@ -510,18 +563,33 @@
 
             }
 
+
             // Update handle lines 
             {
-                let handleLinesPositions = this.meshes.handleLines.geometry.attributes.position;
+                let linesGeometry = this.meshes.handleLines.geometry;
+                let linesPositions = linesGeometry.attributes.position;
+                let count = 0;
 
-                for (let i = 0; i < this.controlPoints.length; i++) {
-                    handleLinesPositions.array[i * 3 + 0] = this.controlPoints[i].x;
-                    handleLinesPositions.array[i * 3 + 1] = this.controlPoints[i].y;
-                    handleLinesPositions.array[i * 3 + 2] = this.controlPoints[i].z;
-                }
+                this.handles.filter(h => h.parent).forEach(h => {
 
-                handleLinesPositions.needsUpdate = true;
+                    linesPositions.array[count * 3 + 0] = h.point.x;
+                    linesPositions.array[count * 3 + 1] = h.point.y;
+                    linesPositions.array[count * 3 + 2] = h.point.z;
+
+                    linesPositions.array[count * 3 + 3] = h.parent.point.x;
+                    linesPositions.array[count * 3 + 4] = h.parent.point.y;
+                    linesPositions.array[count * 3 + 5] = h.parent.point.z;
+
+                    count += 2;
+
+                });
+
+                linesPositions.needsUpdate = true;
+
+                linesGeometry.setDrawRange(0, count);
+
             }
+
         }
         /**
          * Updates the projection matrix
@@ -548,65 +616,6 @@
             this.updateProjectionMatrix();
         }
 
-        /**
-         * Computes the middle control points of the Bezier patch based on the other 12 control
-         * points
-         * @private
-         */
-        updateMidControlPoints() {
-            let cp = this.controlPoints;
-
-            let x00 = cp[4].clone().lerp(cp[7], 1 / 3).x;
-            let y00 = cp[1].clone().lerp(cp[13], 1 / 3).y;
-
-            let x10 = cp[4].clone().lerp(cp[7], 2 / 3).x;
-            let y10 = cp[2].clone().lerp(cp[14], 1 / 3).y;
-
-            let x11 = cp[8].clone().lerp(cp[11], 2 / 3).x;
-            let y11 = cp[2].clone().lerp(cp[14], 2 / 3).y;
-
-            let x01 = cp[8].clone().lerp(cp[11], 1 / 3).x;
-            let y01 = cp[1].clone().lerp(cp[13], 2 / 3).y;
-
-            cp[5].set(x00, y00, 0);
-            cp[6].set(x10, y10, 0);
-            cp[9].set(x01, y01, 0);
-            cp[10].set(x11, y11, 0);
-
-
-
-            /*
-            cp[5].copy(this.weightedAverage(
-                [cp[4], cp[1], cp[8], cp[13], cp[2], cp[7]],
-                [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
-            ));
-
-            cp[6].copy(this.weightedAverage(
-                [cp[2], cp[7], cp[4], cp[1], cp[14], cp[11]],
-                [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
-            ));
-
-            cp[9].copy(this.weightedAverage(
-                [cp[8], cp[13], cp[4], cp[1], cp[14], cp[11]],
-                [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
-            ));
-
-            cp[10].copy(this.weightedAverage(
-                [cp[14], cp[11], cp[2], cp[7], cp[8], cp[13]],
-                [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
-            ));
-            */
-        }
-
-        /**
-         * Updates the handle positions
-         * @private
-         */
-        updateHandles() {
-            for (let h in this.handles) {
-                this.handles[h].reposition();
-            }
-        }
 
         /**
          * Mouse move handle of the canvas
@@ -615,29 +624,8 @@
          */
         mousemove(evt) {
             if (this.selectedHandle && evt.target === this.renderer.domElement) {
-
                 let [mx, my] = [evt.offsetX, evt.offsetY];
-                let h = this.selectedHandle;
-                let e = h.domElement;
-
-                e.style.left = mx + "px";
-                e.style.top = my + "px";
-
-                let offset = this.screenToWorld(mx, my).sub(h.pointRef);
-
-                h.pointRef.add(offset);
-
-                if (this.options.linkCorners) {
-                    h.children[0] ? h.children[0].pointRef.add(offset) : true;
-                    h.children[1] ? h.children[1].pointRef.add(offset) : true;
-
-                    if (h.parent) {
-                        let otherChild = h.parent.getOtherChild(h);
-                        let offset = this._buffers.vec3[0].copy(h.parent.pointRef).sub(h.pointRef);
-                        otherChild.pointRef.copy(h.parent.pointRef).add(offset);
-                    }
-                }
-
+                this.selectedHandle.move(mx, my, this.selectedHandle.mirrorChildren);
             }
         }
 
@@ -671,7 +659,7 @@
          * @returns {THREE.Vector2} The position in screen coordintes
          */
         worldToScreen(v) {
-            let uv = this._buffers.vec3[0].copy(v).project(this.camera);
+            let uv = buffers.vec3[0].copy(v).project(this.camera);
             return new THREE.Vector2(
                 (uv.x + 1) / 2 * this.container.clientWidth,
                 this.container.clientHeight - (uv.y + 1) / 2 * this.container.clientHeight

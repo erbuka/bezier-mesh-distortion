@@ -12,25 +12,7 @@
 
 <body>
 
-    <div class="bm-canvas" id="demo">
-        <div class="bm-handle bm-top-left"></div>
-        <div class="bm-handle bm-top-right"></div>
-        <div class="bm-handle bm-bottom-left"></div>
-        <div class="bm-handle bm-bottom-right"></div>
-        <div class="bm-handle bm-link-0"></div>
-        <div class="bm-handle bm-link-1"></div>
-        <div class="bm-handle bm-link-2"></div>
-        <div class="bm-handle bm-link-3"></div>
-        <div class="bm-handle bm-link-4"></div>
-        <div class="bm-handle bm-link-5"></div>
-        <div class="bm-handle bm-link-6"></div>
-        <div class="bm-handle bm-link-7"></div>
-        
-        <div class="bm-handle bm-middle-0"></div>
-        <div class="bm-handle bm-middle-1"></div>
-        <div class="bm-handle bm-middle-2"></div>
-        <div class="bm-handle bm-middle-3"></div>
-    
+    <div class="bm-canvas" id="demo">    
     </div>
 
     <script>
@@ -44,26 +26,10 @@
                 zoom: 0.7,
                 gridSize: 20,
                 mode: "bezier",
-                linkCorners: true,
                 texture: "texture0.jpg",
                 gridColor: "#999999",
                 handleColor: "#0088ff",
             };
-
-            let savedInstance = null;
-
-            let functions = {
-                save: function () {
-                    savedInstance = bezierDistortion.save();
-                    console.log(savedInstance);
-                },
-                restore: function () {
-                    if (savedInstance) {
-                        bezierDistortion.restore(savedInstance);
-                        Object.assign(options, savedInstance.options);
-                    }
-                }
-            }
 
             let bezierDistortion = new bm.BezierMeshProjection(options);
             let gui = new dat.GUI();
@@ -71,13 +37,10 @@
 
             gui.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
             gui.add(options, "texture", ["texture0.jpg", "texture1.jpg", "texture2.jpg"]).onChange(changeHandler).listen();
-            gui.add(options, "linkCorners").onChange(changeHandler).listen();
             gui.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
             gui.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
             gui.addColor(options, "gridColor").onChange(changeHandler).listen();
             gui.addColor(options, "handleColor").onChange(changeHandler).listen();
-            gui.add(functions, "save");
-            gui.add(functions, "restore");
         });
 
     </script>
