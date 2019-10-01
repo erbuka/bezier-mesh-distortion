@@ -2,6 +2,8 @@
 (function (exportObj, exportName) {
     "use strict";
 
+
+
     /**
      * Creates a new instance
      * @constructor
@@ -288,12 +290,12 @@
             this.handles.topRight0 = this.linkHandle(".bm-handle.bm-link-6", this.controlPoints[14]);
             this.handles.topRight1 = this.linkHandle(".bm-handle.bm-link-7", this.controlPoints[11]);
 
-            /*
+
             this.handles.middle0 = this.linkHandle(".bm-handle.bm-middle-0", this.controlPoints[5]);
             this.handles.middle1 = this.linkHandle(".bm-handle.bm-middle-1", this.controlPoints[6]);
             this.handles.middle2 = this.linkHandle(".bm-handle.bm-middle-2", this.controlPoints[9]);
             this.handles.middle3 = this.linkHandle(".bm-handle.bm-middle-3", this.controlPoints[10]);
-            */
+
 
             this.handles.topLeft = this.linkHandle(".bm-handle.bm-top-left", this.controlPoints[12]);
             this.handles.topLeft.setChild(0, this.handles.topLeft0);
@@ -535,7 +537,7 @@
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();
-        }   
+        }
 
         /**
          * Updates the size of the renderer and the projection matrix
@@ -554,6 +556,26 @@
         updateMidControlPoints() {
             let cp = this.controlPoints;
 
+            let x00 = cp[4].clone().lerp(cp[7], 1 / 3).x;
+            let y00 = cp[1].clone().lerp(cp[13], 1 / 3).y;
+
+            let x10 = cp[4].clone().lerp(cp[7], 2 / 3).x;
+            let y10 = cp[2].clone().lerp(cp[14], 1 / 3).y;
+
+            let x11 = cp[8].clone().lerp(cp[11], 2 / 3).x;
+            let y11 = cp[2].clone().lerp(cp[14], 2 / 3).y;
+
+            let x01 = cp[8].clone().lerp(cp[11], 1 / 3).x;
+            let y01 = cp[1].clone().lerp(cp[13], 2 / 3).y;
+
+            cp[5].set(x00, y00, 0);
+            cp[6].set(x10, y10, 0);
+            cp[9].set(x01, y01, 0);
+            cp[10].set(x11, y11, 0);
+
+
+
+            /*
             cp[5].copy(this.weightedAverage(
                 [cp[4], cp[1], cp[8], cp[13], cp[2], cp[7]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
@@ -573,6 +595,7 @@
                 [cp[14], cp[11], cp[2], cp[7], cp[8], cp[13]],
                 [1 / 4, 1 / 4, 1 / 8, 1 / 8, 1 / 8, 1 / 8]
             ));
+            */
         }
 
         /**
