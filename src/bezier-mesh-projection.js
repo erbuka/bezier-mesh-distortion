@@ -522,6 +522,8 @@
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.textures = new Textures;
 
+            this.raycaster = new THREE.Raycaster();
+
             // Create initial patch
             {
 
@@ -694,19 +696,21 @@
          * @param {MouseEvent} evt 
          */
         mousemove(evt) {
-            let [mx, my] = [evt.offsetX, evt.offsetY];
             let t = evt.target;
-            if (this.selectedHandle) {
-                if (t !== this.renderer.domElement) {
-                    // it's an handle
-                    let rect = t.getBoundingClientRect();
-                    mx += t.offsetLeft
-                    my += t.offsetTop;
-                }
-                console.log(t, mx, my);
+            let [mx, my] = [evt.offsetX, evt.offsetY];
 
+            if (t !== this.renderer.domElement) {
+                // it's an handle
+                let rect = t.getBoundingClientRect();
+                mx += t.offsetLeft
+                my += t.offsetTop;
+            }
+
+            if (this.selectedHandle) {
                 this.selectedHandle.move(mx, my, this.selectedHandle.mirrorChildren);
             }
+
+
         }
 
         /**
