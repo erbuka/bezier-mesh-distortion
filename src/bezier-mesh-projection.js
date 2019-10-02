@@ -280,6 +280,8 @@
      * @param {string} [options.gridColor] Color used for grid lines and grid points.
      * @param {"bezier"|"linear"} [options.mode] Interpolation mode
      * @param {string} [options.texture] The url of the texture to be used
+     * @param {string} [options.background] The image to be placed in the background
+     * @param {boolean} [options.preview] If true, hides the grid and the control points
      */
     class BezierMeshProjection {
         constructor(options) {
@@ -326,6 +328,8 @@
          * @param {string} [options.gridColor] Color used for grid lines and grid points.
          * @param {"bezier"|"linear"} [options.mode] Interpolation mode
          * @param {string} [options.texture] The url of the texture to be used
+         * @param {string} [options.background] The image to be placed in the background
+         * @param {boolean} [options.preview] If true, hides the grid and the control points
          */
         reset(options) {
 
