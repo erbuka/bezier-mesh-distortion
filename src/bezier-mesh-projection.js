@@ -78,7 +78,6 @@
         contains(u, v) {
             return u >= this.u0 && u <= this.v1 && v >= this.v0 && v <= this.v1;
         }
-
     }
 
     class Handle {
@@ -87,7 +86,7 @@
             this.ownerProjection = ownerProjection;
             this.domElement = document.createElement("div");
             this.parent = null;
-            this.children = [null, null];
+            this.children = [];
             this.mirrorChildren = false;
 
             this.domElement.classList.add("bm-handle");
@@ -101,7 +100,23 @@
 
         }
 
-        move(x, y, linkAnchors) {
+        addChildren(...children) {
+            this.children.push(children);
+            children.forEach(c => c.parent = this);
+        }
+
+        mirror(mirroredHandle, referenceHandle) {
+            if (mirroredHandle && referenceHandle) {
+                this.mirrorHandle = {
+                    mirrored: mirroredHandle,
+                    reference: referenceHandle
+                }
+            } else {
+                this.mirrorHandle = null;
+            }
+        }
+
+        move(x, y, mirror) {
             let offset = this.ownerProjection.screenToWorld(x, y).sub(this.point);
 
             this.point.add(offset);
@@ -109,10 +124,9 @@
             this.children[0] ? this.children[0].point.add(offset) : false;
             this.children[1] ? this.children[1].point.add(offset) : false;
 
-            if (linkAnchors && this.parent) {
-                let otherChild = this.parent.getOtherChild(this);
-                let offset = buffers.vec3[0].copy(this.parent.point).sub(this.point);
-                otherChild.point.copy(this.parent.point).add(offset);
+            if (this.mirrorHandle && mirror) {
+                let offset = buffers.vec3[0].copy(this.mirrorHandle.reference.point).sub(this.point);
+                this.mirrorHandle.mirrored.point.copy(this.mirrorHandle.reference.point).add(offset);
             }
 
         }
@@ -124,27 +138,10 @@
             this.domElement.style.top = (screenPos.y - rect.height / 2) + "px";
         }
 
-        setChild(index, childHandle) {
-            if (typeof index !== "number" || index < 0 || index >= 2)
-                throw new Error("Invalid child handle parameters");
-
-            this.children[index] = childHandle;
-            childHandle.parent = this;
-        }
-
-        getOtherChild(childHandle) {
-            return this.children[0] === childHandle ? this.children[1] : this.children[0];
-        }
     }
 
-    class BezierPatch {
-        constructor(ownerProjection, domain, controlPoints) {
-            this.ownerProjection = ownerProjection;
-            this.controlPoints = controlPoints;
-            this.domain = domain;
-        }
-
-        static controlPointsFromCorners(topLeft, topRight, bottomLeft, bottomRight) {
+    class Patch {
+        constructor(ownerProjection, topLeft, topRight, bottomLeft, bottomRight) {
             let cp = new Array(16);
 
             let tl = cp[12] = topLeft.clone();
@@ -169,12 +166,80 @@
             cp[9] = new THREE.Vector3();
             cp[10] = new THREE.Vector3();
 
-            return cp;
+            this.ownerProjection = ownerProjection;
+            this.bezierPatches = [];
+            this.handles = [];
+
+            let initialBezierPatch = new BezierPatch(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
+            this.bezierPatches.push(initialBezierPatch);
+
+            // Handles
+            {
+                let topLeft = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[12]);
+                let topRight = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[15]);
+                let bottomLeft = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[0]);
+                let bottomRight = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[3]);
+
+                let bottomLeft0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[1]);
+                let bottomLeft1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[4]);
+
+                let bottomRight0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[2]);
+                let bottomRight1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[7]);
+
+                let topLeft0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[8]);
+                let topLeft1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[13]);
+
+                let topRight0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[14]);
+                let topRight1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[11]);
+
+                topLeft.addChildren(topLeft0, topLeft1);
+                topLeft0.mirror(topLeft1, topLeft);
+                topLeft1.mirror(topLeft0, topLeft);
+
+                bottomLeft.addChildren(bottomLeft0, bottomLeft1);
+                bottomLeft0.mirror(bottomLeft1, bottomLeft);
+                bottomLeft1.mirror(bottomLeft0, bottomLeft);
+
+                topRight.addChildren(topRight0, topRight1);
+                topRight0.mirror(topRight1, topRight);
+                topRight1.mirror(topRight0, topRight);
+
+                bottomRight.addChildren(bottomRight0, bottomRight1);
+                bottomRight0.mirror(bottomRight1, bottomRight);
+                bottomRight1.mirror(bottomRight0, bottomRight);
+
+                this.handles.push(
+                    topLeft, topLeft0, topLeft1,
+                    topRight, topRight0, topRight1,
+                    bottomLeft, bottomLeft0, bottomLeft1,
+                    bottomRight, bottomRight0, bottomRight1
+                );
+            }
+
 
         }
 
-        isSubdivided() {
-            return false;
+        compute(u, v) {
+            for (let p of this.bezierPatches) {
+                if (p.domain.contains(u, v))
+                    return p.compute(u, v);
+            }
+        }
+
+        subdivide(u, v) {
+
+        }
+
+        update() {
+            this.bezierPatches.forEach(p => p.update());
+        }
+    }
+
+    class BezierPatch {
+        constructor(ownerProjection, domain, controlPoints) {
+            this.ownerProjection = ownerProjection;
+            this.controlPoints = controlPoints;
+            this.domain = domain;
         }
 
         compute(u, v, mode) {
@@ -199,47 +264,6 @@
             }
         }
 
-        createHandles() {
-            let topLeft = new Handle(this.ownerProjection, this.controlPoints[12]);
-            let topRight = new Handle(this.ownerProjection, this.controlPoints[15]);
-            let bottomLeft = new Handle(this.ownerProjection, this.controlPoints[0]);
-            let bottomRight = new Handle(this.ownerProjection, this.controlPoints[3]);
-
-            let bottomLeft0 = new Handle(this.ownerProjection, this.controlPoints[1]);
-            let bottomLeft1 = new Handle(this.ownerProjection, this.controlPoints[4]);
-
-            let bottomRight0 = new Handle(this.ownerProjection, this.controlPoints[2]);
-            let bottomRight1 = new Handle(this.ownerProjection, this.controlPoints[7]);
-
-            let topLeft0 = new Handle(this.ownerProjection, this.controlPoints[8]);
-            let topLeft1 = new Handle(this.ownerProjection, this.controlPoints[13]);
-
-            let topRight0 = new Handle(this.ownerProjection, this.controlPoints[14]);
-            let topRight1 = new Handle(this.ownerProjection, this.controlPoints[11]);
-
-            topLeft.setChild(0, topLeft0);
-            topLeft.setChild(1, topLeft1);
-
-            bottomLeft.setChild(0, bottomLeft0);
-            bottomLeft.setChild(1, bottomLeft1);
-
-            topRight.setChild(0, topRight0);
-            topRight.setChild(1, topRight1);
-
-            bottomRight.setChild(0, bottomRight0);
-            bottomRight.setChild(1, bottomRight1);
-
-            let handles = [
-                topLeft, topLeft0, topLeft1,
-                topRight, topRight0, topRight1,
-                bottomLeft, bottomLeft0, bottomLeft1,
-                bottomRight, bottomRight0, bottomRight1
-            ];
-
-            return handles;
-
-        }
-
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
@@ -260,11 +284,6 @@
             cp[6].set(x10, y10, 0);
             cp[9].set(x01, y01, 0);
             cp[10].set(x11, y11, 0);
-        }
-
-        destroy() {
-            for (let h of this.handles)
-                h.destroy();
         }
 
     }
@@ -340,9 +359,11 @@
             const n = gs1 * gs1;
             this.meshes = {};
 
-
-            for (let h of this.handles)
+            // Update handles
+            for (let h of this.patch.handles) {
                 h.domElement.style.backgroundColor = this.options.handleColor;
+                h.domElement.style.display = this.options.preview ? "none" : null;
+            }
 
             // Initialize three.js scene
 
@@ -359,8 +380,8 @@
 
                 this.textures.load(this.options.background).then(tex => {
                     let planeGeom = new THREE.PlaneGeometry(
-                        tex.image.width / tex.image.height * 2 / this.options.zoom,
-                        2 / this.options.zoom
+                        tex.image.width / tex.image.height * 2,
+                        2
                     );
 
                     planeGeom.translate(0, 0, -0.1);
@@ -500,10 +521,6 @@
             this.meshes.handleLines.visible = !this.options.preview;
             this.meshes.gridLines.visible = !this.options.preview;
 
-            this.handles.forEach(h => {
-                h.domElement.style.display = this.options.preview ? "none" : null;
-            });
-
             this.reshape();
 
         }
@@ -532,11 +549,7 @@
                 let tl = buffers.vec3[2].set(-1 * aspectRatio, +1, 0);
                 let tr = buffers.vec3[3].set(+1 * aspectRatio, +1, 0);
 
-                let cp = BezierPatch.controlPointsFromCorners(tl, tr, bl, br);
-
-                this.patch = new BezierPatch(this, new Domain(0, 0, 1, 1), cp);
-                this.handles = this.patch.createHandles();
-
+                this.patch = new Patch(this, tl, tr, bl, br);
             }
 
             // Add window listeners + dom elements
@@ -558,7 +571,7 @@
             window.requestAnimationFrame(this.loop.bind(this));
 
             this.updateProjectionMatrix();
-            for (let h of this.handles)
+            for (let h of this.patch.handles)
                 h.reposition();
             this.updatePatch();
             this.updateMeshes();
@@ -643,7 +656,7 @@
                 let linesPositions = linesGeometry.attributes.position;
                 let count = 0;
 
-                this.handles.filter(h => h.parent).forEach(h => {
+                this.patch.handles.filter(h => h.parent).forEach(h => {
 
                     linesPositions.array[count * 3 + 0] = h.point.x;
                     linesPositions.array[count * 3 + 1] = h.point.y;
@@ -710,7 +723,29 @@
                 this.selectedHandle.move(mx, my, this.selectedHandle.mirrorChildren);
             }
 
+            // Raycaster test
 
+            let mouseNdc = new THREE.Vector2(
+                mx / this.container.clientWidth * 2 - 1,
+                - (my / this.container.clientHeight) * 2 + 1
+            );
+
+            /*
+            this.raycaster.setFromCamera(mouseNdc, this.camera);
+            let intersects = this.raycaster.intersectObject(this.meshes.plane);
+            console.log(intersects);
+            if(intersects.length === 1) {
+                let u = intersects[0].uv.x;
+                let v = intersects[0].uv.y;
+
+                let pu0 = new THREE.Vector3().copy(this.patch.compute(u, 0));
+                let pu1 = new THREE.Vector3().copy(this.patch.compute(u, 1));
+                let pv0 = new THREE.Vector3().copy(this.patch.compute(0, v));
+                let pv1 = new THREE.Vector3().copy(this.patch.compute(1, v));
+
+                console.log(pu0, pu1, pv0, pv1);
+            }
+            */
         }
 
         /**
