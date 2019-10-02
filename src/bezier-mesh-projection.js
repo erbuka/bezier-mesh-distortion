@@ -40,6 +40,32 @@
 
     }
 
+    class History {
+        constructor() {
+            this.index = -1;
+            this.data = [];
+        }
+
+        current() {
+            return this.data[this.index];
+        }
+
+        insert(e) {
+            this.index++;
+            let deleteCount = Math.max(0, this.data.length - this.index);
+            this.data.splice(this.index, deleteCount, e);
+        }
+
+        back() {
+            this.index = Math.max(0, this.index - 1);
+        }
+
+        forward() {
+            this.index = Math.min(this.data.length - 1, this.index + 1);
+        }
+
+    }
+
     class Util {
         /**
          * Computes the Bernsetin polinomial of grade 3
@@ -87,21 +113,11 @@
             this.domElement = document.createElement("div");
             this.parent = null;
             this.children = [];
-            this.mirrorChildren = false;
-
-            this.domElement.classList.add("bm-handle");
-            this.domElement.addEventListener("mousedown", (evt) => {
-                this.ownerProjection.selectedHandle = this;
-                this.mirrorChildren = evt.button === 2;
-                evt.preventDefault();
-            })
-
-            ownerProjection.container.appendChild(this.domElement);
-
+            this.mirrorMode = false;
         }
 
         addChildren(...children) {
-            this.children.push(children);
+            this.children.push(...children);
             children.forEach(c => c.parent = this);
         }
 
@@ -121,10 +137,9 @@
 
             this.point.add(offset);
 
-            this.children[0] ? this.children[0].point.add(offset) : false;
-            this.children[1] ? this.children[1].point.add(offset) : false;
+            this.children.forEach(c => c.point.add(offset));
 
-            if (this.mirrorHandle && mirror) {
+            if (this.mirrorHandle && this.mirrorMode) {
                 let offset = buffers.vec3[0].copy(this.mirrorHandle.reference.point).sub(this.point);
                 this.mirrorHandle.mirrored.point.copy(this.mirrorHandle.reference.point).add(offset);
             }
@@ -138,10 +153,31 @@
             this.domElement.style.top = (screenPos.y - rect.height / 2) + "px";
         }
 
+        create() {
+            this.domElement.classList.add("bm-handle");
+            this.domElement.addEventListener("mousedown", (evt) => {
+                this.ownerProjection.setSelectedHandle(this);
+                this.mirrorMode = evt.button === 2;
+                evt.preventDefault();
+            })
+            this.ownerProjection.container.appendChild(this.domElement);
+        }
+
+        dispose() {
+            this.ownerProjection.container.removeChild(this.domElement);
+            this.domElement = null;
+        }
+
     }
 
     class Patch {
-        constructor(ownerProjection, topLeft, topRight, bottomLeft, bottomRight) {
+        constructor(ownerProjection) {
+            this.ownerProjection = ownerProjection;
+            this.dispose();
+        }
+
+        initFromCorners(topLeft, topRight, bottomLeft, bottomRight) {
+
             let cp = new Array(16);
 
             let tl = cp[12] = topLeft.clone();
@@ -166,9 +202,7 @@
             cp[9] = new THREE.Vector3();
             cp[10] = new THREE.Vector3();
 
-            this.ownerProjection = ownerProjection;
-            this.bezierPatches = [];
-            this.handles = [];
+            this.dispose();
 
             let initialBezierPatch = new BezierPatch(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
             this.bezierPatches.push(initialBezierPatch);
@@ -214,6 +248,133 @@
                     bottomLeft, bottomLeft0, bottomLeft1,
                     bottomRight, bottomRight0, bottomRight1
                 );
+
+                this.handles.forEach(h => h.create());
+
+            }
+        }
+
+        dispose() {
+            if (this.handles)
+                for (let h of this.handles)
+                    h.dispose();
+
+            this.handles = [];
+            this.bezierPatches = [];
+        }
+
+        save() {
+
+            let ref = (p) => {
+                if (!p["$ref"] === undefined)
+                    throw new Error("Serialize error");
+                return p["$ref"];
+            }
+
+            let serialize = (o) => {
+                return JSON.parse(JSON.stringify(o));
+            }
+
+            // 1 . Save point references
+            let points = [];
+            let refCount = 0;
+            for (let patch of this.bezierPatches) {
+                for (let point of patch.controlPoints) {
+                    point["$ref"] = refCount;
+                    points.push(serialize(point));
+                    refCount++;
+                }
+            }
+
+            // 2 . Save all handle references
+            refCount = 0;
+            for (let h of this.handles) {
+                h["$ref"] = refCount;
+                refCount++;
+            }
+
+
+
+            let patches = [];
+
+            // 2 . Save patches with referenced control points
+            for (let patch of this.bezierPatches) {
+                let patchData = {
+                    points: [],
+                    domain: serialize(patch.domain)
+                };
+
+                for (let point of patch.controlPoints) {
+                    patchData.points.push(ref(point));
+                }
+                patches.push(patchData);
+            }
+
+            // 3. Save handles
+            let handles = [];
+            for (let h of this.handles) {
+                let handleData = {};
+                handleData.point = ref(h.point);
+                handleData.children = [];
+                for (let c of h.children) {
+                    handleData.children.push(ref(c));
+                }
+
+                if (h.mirrorHandle) {
+                    handleData.mirrorHandle = {
+                        mirrored: ref(h.mirrorHandle.mirrored),
+                        reference: ref(h.mirrorHandle.reference)
+                    }
+                }
+
+                handles.push(handleData);
+
+            }
+
+
+            // Result
+            return {
+                points: points,
+                patches: patches,
+                handles: handles
+            }
+
+
+        }
+
+        restore(savedInstance) {
+
+            this.dispose();
+
+            let points = [];
+            savedInstance.points.forEach(p => points.push(new THREE.Vector3(p.x, p.y, 0)));
+
+            for (let patchData of savedInstance.patches) {
+                let controlPoints = [];
+                let domain = new Domain(patchData.domain.u0, patchData.domain.v0,
+                    patchData.domain.u1, patchData.domain.v1);
+
+                patchData.points.forEach(i => controlPoints.push(points[i]));
+                this.bezierPatches.push(new BezierPatch(this.ownerProjection, domain, controlPoints));
+            }
+
+            for (let handleData of savedInstance.handles) {
+                this.handles.push(new Handle(this.ownerProjection, points[handleData.point]));
+            }
+
+            for (let i = 0; i < this.handles.length; i++) {
+                let handleData = savedInstance.handles[i];
+                this.handles[i].addChildren(...handleData.children.map(i => this.handles[i]));
+
+                if (handleData.mirrorHandle) {
+                    this.handles[i].mirror(
+                        this.handles[handleData.mirrorHandle.mirrored],
+                        this.handles[handleData.mirrorHandle.reference]
+                    );
+                }
+
+                this.handles[i].create();
+
             }
 
 
@@ -309,7 +470,7 @@
                 container: null,
                 aspectRatio: 1,
                 gridSize: 20,
-                zoom: 0.7,
+                zoom: 1,
                 gridColor: "#666666",
                 handleColor: "#0088ff",
                 mode: "bezier",
@@ -360,10 +521,8 @@
             this.meshes = {};
 
             // Update handles
-            for (let h of this.patch.handles) {
-                h.domElement.style.backgroundColor = this.options.handleColor;
-                h.domElement.style.display = this.options.preview ? "none" : null;
-            }
+            this.updateHandleStyles();
+
 
             // Initialize three.js scene
 
@@ -538,18 +697,23 @@
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
             this.textures = new Textures;
+            this.history = new History();
 
             this.raycaster = new THREE.Raycaster();
 
             // Create initial patch
             {
 
-                let bl = buffers.vec3[0].set(-1 * aspectRatio, -1, 0);
-                let br = buffers.vec3[1].set(+1 * aspectRatio, -1, 0);
-                let tl = buffers.vec3[2].set(-1 * aspectRatio, +1, 0);
-                let tr = buffers.vec3[3].set(+1 * aspectRatio, +1, 0);
+                let bl = buffers.vec3[0].set(-1 * aspectRatio * 0.7, -1 * 0.7, 0);
+                let br = buffers.vec3[1].set(+1 * aspectRatio * 0.7, -1 * 0.7, 0);
+                let tl = buffers.vec3[2].set(-1 * aspectRatio * 0.7, +1 * 0.7, 0);
+                let tr = buffers.vec3[3].set(+1 * aspectRatio * 0.7, +1 * 0.7, 0);
 
-                this.patch = new Patch(this, tl, tr, bl, br);
+
+                this.patch = new Patch(this);
+                this.patch.initFromCorners(tl, tr, bl, br);
+
+                window["patch"] = this.patch;
             }
 
             // Add window listeners + dom elements
@@ -558,7 +722,22 @@
             this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
             window.addEventListener("resize", this.reshape.bind(this));
             window.addEventListener("mouseup", this.mouseup.bind(this));
+            window.addEventListener("keypress", this.keypress.bind(this));
 
+            this.saveHistory();
+
+        }
+
+        restoreHistory() {
+            let current = this.history.current();
+            this.patch.restore(current.patchData);
+            this.updateHandleStyles();
+        }
+
+        saveHistory() {
+            this.history.insert({
+                patchData: this.patch.save()
+            });
         }
 
 
@@ -600,6 +779,14 @@
             }
 
             return vRes.multiplyScalar(f);
+        }
+
+
+        updateHandleStyles() {
+            for (let h of this.patch.handles) {
+                h.domElement.style.backgroundColor = this.options.handleColor;
+                h.domElement.style.display = this.options.preview ? "none" : null;
+            }
         }
 
         updatePatch() {
@@ -702,6 +889,22 @@
             this.updateProjectionMatrix();
         }
 
+        keypress(evt) {
+            if (evt.ctrlKey) {
+                switch (evt.code) {
+                    case "KeyZ": // Undo
+                        this.history.back();
+                        this.restoreHistory();
+                        break;
+                    case "KeyY": // Redo
+                        this.history.forward();
+                        this.restoreHistory();
+                        break;
+                }
+            }
+        }
+
+
 
         /**
          * Mouse move handle of the canvas
@@ -720,7 +923,7 @@
             }
 
             if (this.selectedHandle) {
-                this.selectedHandle.move(mx, my, this.selectedHandle.mirrorChildren);
+                this.selectedHandle.move(mx, my);
             }
 
             // Raycaster test
@@ -754,7 +957,16 @@
          * @param {MouseEvent} evt 
          */
         mouseup(evt) {
-            this.selectedHandle = null;
+            if (this.selectedHandle) {
+
+                if (this.dragHandleInfo.position.distanceTo(this.selectedHandle.point) > 0) {
+                    this.saveHistory();
+                    console.log(this.history);
+                }
+
+                this.dragHandleInfo = null;
+                this.selectedHandle = null;
+            }
         }
 
         /**
@@ -783,6 +995,14 @@
                 (uv.x + 1) / 2 * this.container.clientWidth,
                 this.container.clientHeight - (uv.y + 1) / 2 * this.container.clientHeight
             );
+        }
+
+        setSelectedHandle(handle) {
+            this.selectedHandle = handle;
+            this.dragHandleInfo = {
+                position: handle.point.clone(),
+                patchData: this.patch.save()
+            }
         }
 
     }
