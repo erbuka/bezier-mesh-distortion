@@ -460,24 +460,6 @@
             // Compute middle control points
             let cp = this.controlPoints;
 
-            /*
-            let x00 = cp[4].clone().lerp(cp[7], 1 / 3).x;
-            let y00 = cp[1].clone().lerp(cp[13], 1 / 3).y;
-
-            let x10 = cp[4].clone().lerp(cp[7], 2 / 3).x;
-            let y10 = cp[2].clone().lerp(cp[14], 1 / 3).y;
-
-            let x11 = cp[8].clone().lerp(cp[11], 2 / 3).x;
-            let y11 = cp[2].clone().lerp(cp[14], 2 / 3).y;
-
-            let x01 = cp[8].clone().lerp(cp[11], 1 / 3).x;
-            let y01 = cp[1].clone().lerp(cp[13], 2 / 3).y;
-
-            cp[5].set(x00, y00, 0);
-            cp[6].set(x10, y10, 0);
-            cp[9].set(x01, y01, 0);
-            cp[10].set(x11, y11, 0);*/
-
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
