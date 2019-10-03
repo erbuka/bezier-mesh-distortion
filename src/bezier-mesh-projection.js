@@ -129,10 +129,10 @@
 
     class Util {
 
-        static makeArray(size, ctor) {
+        static makeArray(size, ctor, ...args) {
             let r = new Array(size);
             for (let i = 0; i < size; i++)
-                r[i] = new ctor();
+                r[i] = new ctor(...args);
             return r;
         }
 
