@@ -456,6 +456,103 @@
         update() {
             this.bezierPatchesGrid.forEach(p => p.update());
         }
+
+        subdivideHorizontal(v) {
+            let rowIndex = this.bezierPatchesGrid.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
+            let row = this.bezierPatchesGrid.rows()[rowIndex];
+
+            let topPatches = [];
+            let bottomPacthes = [];
+
+
+            /* Subdivided curves
+            a1      b1      c1      d1
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            ---------------------------- cut point
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            |       |       |       |
+            a0      b0      c0      d0
+
+            */
+
+            for (let j = 0; j < this.bezierPatchesGrid.colCount; j++) {
+
+                let cur = row[j];
+
+                let a = Util.subdivideCurve(v, cur.controlPoints[0], cur.controlPoints[4], cur.controlPoints[8], cur.controlPoints[12]);
+                let b = Util.subdivideCurve(v, cur.controlPoints[1], cur.controlPoints[5], cur.controlPoints[9], cur.controlPoints[13]);
+                let c = Util.subdivideCurve(v, cur.controlPoints[2], cur.controlPoints[6], cur.controlPoints[10], cur.controlPoints[14]);
+                let d = Util.subdivideCurve(v, cur.controlPoints[3], cur.controlPoints[7], cur.controlPoints[11], cur.controlPoints[15]);
+
+
+                let ptsTop = Util.makeArray(16, THREE.Vector3);
+                let ptsBottom = Util.makeArray(16, THREE.Vector3);
+
+                if (j > 0) {
+                    ptsBottom[0] = bottomPatches[j - 1].controlPoints[3];
+                    ptsBottom[4] = bottomPatches[j - 1].controlPoints[7];
+                    ptsBottom[8] = bottomPatches[j - 1].controlPoints[11];
+                    ptsBottom[12] = bottomPatches[j - 1].controlPoints[15];
+
+                    ptsTop[0] = topPatches[j - 1].controlPoints[3];
+                    ptsTop[4] = topPatches[j - 1].controlPoints[7];
+                    ptsTop[8] = topPatches[j - 1].controlPoints[11];
+                    ptsTop[12] = topPatches[j - 1].controlPoints[15];
+
+                    // Create handles here
+                } else {
+                    ptsBottom[0] = cur.controlPoints[0];
+                    ptsBottom[4] = cur.controlPoints[4].copy(a[0][1]);
+                    ptsBottom[8] = a[0][2].clone();
+
+                    ptsTop[12] = cur.controlPoints[12];
+                    ptsTop[8] = cur.controlPoints[8];
+                    ptsTop[4] = a[1][1].clone();
+
+                    ptsBottom[12] = ptsTop[0] = a[1][0].clone();
+
+
+                    // Create handles here
+                }
+
+                ptsBottom[1] = cur.controlPoints[1];
+                ptsBottom[2] = cur.controlPoints[2];
+                ptsBottom[3] = cur.controlPoints[3];
+                ptsBottom[7] = cur.controlPoints[7].copy(d[0][1]);
+                ptsBottom[11] = d[0][2].clone();
+
+                ptsTop[13] = cur.controlPoints[13];
+                ptsTop[14] = cur.controlPoints[14];
+                ptsTop[15] = cur.controlPoints[15];
+                ptsTop[11] = cur.controlPoints[11].copy(d[1][2]);
+                ptsTop[7] = d[1][1].clone();
+
+                ptsBottom[13] = ptsTop[1] = b[1][0].clone();
+                ptsBottom[14] = ptsTop[2] = c[1][0].clone();
+                ptsBottom[15] = ptsTop[3] = d[1][0].clone();
+
+                bottomPatches.push(new BezierPatch(
+                    this.ownerProjection,
+                    new Domain(cur.domain.u0, cur.domain.v0, cur.domain.u1, v),
+                    ptsBottom
+                ));
+
+                topPatches.push(new BezierPatch(
+                    this.ownerProjection,
+                    new Domain(cur.domain.u0, v, cur.domain.u1, cur.domain.v1)
+                ));
+            }
+
+
+        }
+
     }
 
     class BezierPatch {
@@ -466,6 +563,10 @@
         }
 
         compute(u, v, mode) {
+
+            u = (u - this.domain.u0) / (this.domain.u1 - this.domain.u0);
+            v = (v - this.domain.v0) / (this.domain.v1 - this.domain.v0);
+
             if (mode === "linear") {
                 let v0 = buffers.vec3[0].copy(this.controlPoints[0]);
                 let v1 = buffers.vec3[1].copy(this.controlPoints[12]);
@@ -949,6 +1050,11 @@
                         break;
                 }
             }
+
+            if (evt.code === "KeyS") {
+                this.patch.subdivideHorizontal(0.5);
+            }
+
         }
 
 
