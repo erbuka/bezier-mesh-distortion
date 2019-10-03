@@ -226,6 +226,14 @@
                 let topRight0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[14]);
                 let topRight1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[11]);
 
+                // Center handles
+
+                let center0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[5]);
+                let center1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[6]);
+                let center2 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[9]);
+                let center3 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[10]);
+
+
                 topLeft.addChildren(topLeft0, topLeft1);
                 topLeft0.mirror(topLeft1, topLeft);
                 topLeft1.mirror(topLeft0, topLeft);
@@ -242,11 +250,16 @@
                 bottomRight0.mirror(bottomRight1, bottomRight);
                 bottomRight1.mirror(bottomRight0, bottomRight);
 
+
+                
+
+
                 this.handles.push(
                     topLeft, topLeft0, topLeft1,
                     topRight, topRight0, topRight1,
                     bottomLeft, bottomLeft0, bottomLeft1,
-                    bottomRight, bottomRight0, bottomRight1
+                    bottomRight, bottomRight0, bottomRight1,
+                    center0, center1, center2, center3
                 );
 
                 this.handles.forEach(h => h.create());
