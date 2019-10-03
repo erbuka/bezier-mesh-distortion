@@ -26,7 +26,7 @@
                 zoom: 1,
                 gridSize: 20,
                 mode: "bezier",
-                texture: "coca-cola.jpg",
+                texture: "grid.jpg",
                 background: "bottle.jpg",
                 gridColor: "#999999",
                 handleColor: "#0088ff",
@@ -38,7 +38,7 @@
             let changeHandler = () => bezierDistortion.reset(options);
 
             gui.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
-            gui.add(options, "texture", ["jd.png", "starbucks.png", "coca-cola.jpg"]).onChange(changeHandler).listen();
+            gui.add(options, "texture", ["grid.jpg", "jd.png", "starbucks.png", "coca-cola.jpg"]).onChange(changeHandler).listen();
             gui.add(options, "background", ["bottle.jpg", "mug.jpg"]).onChange(changeHandler).listen();
             gui.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
             gui.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
