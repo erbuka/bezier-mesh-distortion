@@ -153,14 +153,19 @@
         }
     }
 
-    class Handle {
-        constructor(ownerProjection, point) {
-            this.point = point;
+    class ControlPoint extends THREE.Vector3 {
+        constructor(ownerProjection, x, y, z) {
+            super(x, y, z);
             this.ownerProjection = ownerProjection;
             this.domElement = document.createElement("div");
             this.parent = null;
             this.children = [];
             this.mirrorMode = false;
+            this.create();
+        }
+
+        static fromVector(ownerProjection, point) {
+            return new ControlPoint(ownerProjection, point.x, point.y, point.z);
         }
 
         addChildren(...children) {
@@ -168,36 +173,38 @@
             children.forEach(c => c.parent = this);
         }
 
-        mirror(mirroredHandle, referenceHandle) {
-            if (mirroredHandle && referenceHandle) {
-                this.mirrorHandle = {
-                    mirrored: mirroredHandle,
-                    reference: referenceHandle
+        mirror(other, reference) {
+            if (other && reference) {
+                this.mirrorPoint = {
+                    other: other,
+                    reference: reference
                 }
             } else {
-                this.mirrorHandle = null;
+                this.mirrorPoint = null;
             }
         }
 
         move(x, y) {
-            let offset = this.ownerProjection.screenToWorld(x, y).sub(this.point);
+            let offset = this.ownerProjection.screenToWorld(x, y).sub(this);
 
-            this.point.add(offset);
+            this.add(offset);
 
-            this.children.forEach(c => c.point.add(offset));
+            this.children.forEach(c => c.add(offset));
 
-            if (this.mirrorHandle && this.mirrorMode) {
-                let offset = buffers.vec3[0].copy(this.mirrorHandle.reference.point).sub(this.point);
-                this.mirrorHandle.mirrored.point.copy(this.mirrorHandle.reference.point).add(offset);
+            if (this.mirrorPoint && this.mirrorMode) {
+                let offset = buffers.vec3[0].copy(this.mirrorPoint.reference).sub(this);
+                this.mirrorPoint.other.copy(this.mirrorPoint.reference).add(offset);
             }
 
         }
 
-        reposition() {
-            let screenPos = this.ownerProjection.worldToScreen(this.point);
+        update() {
+            let screenPos = this.ownerProjection.worldToScreen(this);
             let rect = this.domElement.getBoundingClientRect();
             this.domElement.style.left = (screenPos.x - rect.width / 2) + "px";
             this.domElement.style.top = (screenPos.y - rect.height / 2) + "px";
+            this.domElement.style.backgroundColor = this.ownerProjection.options.handleColor;
+            this.domElement.style.display = this.ownerProjection.options.preview ? "none" : null;
         }
 
         create() {
@@ -215,6 +222,10 @@
             this.domElement = null;
         }
 
+        clone() {
+            return new ControlPoint(this.ownerProjection, this.x, this.y, this.z);
+        }
+
     }
 
     class Patch {
@@ -227,10 +238,10 @@
 
             let cp = new Array(16);
 
-            let tl = cp[12] = topLeft.clone();
-            let tr = cp[15] = topRight.clone();
-            let bl = cp[0] = bottomLeft.clone();
-            let br = cp[3] = bottomRight.clone();
+            let tl = cp[12] = ControlPoint.fromVector(this.ownerProjection, topLeft);
+            let tr = cp[15] = ControlPoint.fromVector(this.ownerProjection, topRight);
+            let bl = cp[0] = ControlPoint.fromVector(this.ownerProjection, bottomLeft);
+            let br = cp[3] = ControlPoint.fromVector(this.ownerProjection, bottomRight);
 
             cp[1] = bl.clone().lerp(br, 1 / 3);
             cp[2] = bl.clone().lerp(br, 2 / 3);
@@ -244,82 +255,38 @@
             cp[7] = br.clone().lerp(tr, 1 / 3);
             cp[11] = br.clone().lerp(tr, 2 / 3);
 
-            cp[5] = new THREE.Vector3();
-            cp[6] = new THREE.Vector3();
-            cp[9] = new THREE.Vector3();
-            cp[10] = new THREE.Vector3();
+            cp[5] = new ControlPoint(this.ownerProjection);
+            cp[6] = new ControlPoint(this.ownerProjection);
+            cp[9] = new ControlPoint(this.ownerProjection);
+            cp[10] = new ControlPoint(this.ownerProjection);
 
             this.dispose();
 
             let initialBezierPatch = new BezierPatch(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
             this.bezierPatches.push(initialBezierPatch);
 
-            // Handles
-            {
-                let topLeft = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[12]);
-                let topRight = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[15]);
-                let bottomLeft = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[0]);
-                let bottomRight = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[3]);
+            cp[0].addChildren(cp[1], cp[4]);
+            cp[3].addChildren(cp[2], cp[7]);
+            cp[15].addChildren(cp[11], cp[14]);
+            cp[12].addChildren(cp[8], cp[13]);
 
-                let bottomLeft0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[1]);
-                let bottomLeft1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[4]);
+            cp[1].mirror(cp[4], cp[0]);
+            cp[4].mirror(cp[1], cp[0]);
 
-                let bottomRight0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[2]);
-                let bottomRight1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[7]);
+            cp[2].mirror(cp[7], cp[3]);
+            cp[7].mirror(cp[2], cp[3]);
 
-                let topLeft0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[8]);
-                let topLeft1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[13]);
+            cp[11].mirror(cp[14], cp[15]);
+            cp[14].mirror(cp[11], cp[15]);
 
-                let topRight0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[14]);
-                let topRight1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[11]);
+            cp[8].mirror(cp[13], cp[12]);
+            cp[13].mirror(cp[8], cp[12]);
 
-                // Center handles
-
-                let center0 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[5]);
-                let center1 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[6]);
-                let center2 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[9]);
-                let center3 = new Handle(this.ownerProjection, initialBezierPatch.controlPoints[10]);
-
-
-                topLeft.addChildren(topLeft0, topLeft1);
-                topLeft0.mirror(topLeft1, topLeft);
-                topLeft1.mirror(topLeft0, topLeft);
-
-                bottomLeft.addChildren(bottomLeft0, bottomLeft1);
-                bottomLeft0.mirror(bottomLeft1, bottomLeft);
-                bottomLeft1.mirror(bottomLeft0, bottomLeft);
-
-                topRight.addChildren(topRight0, topRight1);
-                topRight0.mirror(topRight1, topRight);
-                topRight1.mirror(topRight0, topRight);
-
-                bottomRight.addChildren(bottomRight0, bottomRight1);
-                bottomRight0.mirror(bottomRight1, bottomRight);
-                bottomRight1.mirror(bottomRight0, bottomRight);
-
-
-
-
-
-                this.handles.push(
-                    topLeft, topLeft0, topLeft1,
-                    topRight, topRight0, topRight1,
-                    bottomLeft, bottomLeft0, bottomLeft1,
-                    bottomRight, bottomRight0, bottomRight1,
-                    center0, center1, center2, center3
-                );
-
-                this.handles.forEach(h => h.create());
-
-            }
         }
 
         dispose() {
-            if (this.handles)
-                for (let h of this.handles)
-                    h.dispose();
-
-            this.handles = [];
+            if (this.bezierPatches)
+                this.bezierPatches.forEach(p => p.dispose());
             this.bezierPatches = [];
         }
 
@@ -335,70 +302,46 @@
                 return JSON.parse(JSON.stringify(o));
             }
 
-            // 1 . Save point references
-            let points = [];
+            // 1 . Set control points reference
             let refCount = 0;
             for (let patch of this.bezierPatches) {
                 for (let point of patch.controlPoints) {
                     point["$ref"] = refCount;
-                    points.push(serialize(point));
                     refCount++;
                 }
             }
 
-            // 2 . Save all handle references
-            refCount = 0;
-            for (let h of this.handles) {
-                h["$ref"] = refCount;
-                refCount++;
-            }
-
-
-
+            let controlPoints = [];
             let patches = [];
 
-            // 2 . Save patches with referenced control points
             for (let patch of this.bezierPatches) {
+
                 let patchData = {
-                    points: [],
+                    controlPoints: [],
                     domain: serialize(patch.domain)
                 };
 
                 for (let point of patch.controlPoints) {
-                    patchData.points.push(ref(point));
+                    let p = {
+                        x: point.x,
+                        y: point.y,
+                        z: point.z,
+                        children: point.children.map(c => ref(c)),
+                        mirrorPoint: point.mirrorPoint ?
+                            { other: ref(point.mirrorPoint.other), reference: ref(point.mirrorPoint.reference) } :
+                            null
+                    }
+                    controlPoints.push(p);
+                    patchData.controlPoints.push(ref(point));
                 }
+
                 patches.push(patchData);
             }
 
-            // 3. Save handles
-            let handles = [];
-            for (let h of this.handles) {
-                let handleData = {};
-                handleData.point = ref(h.point);
-                handleData.children = [];
-                for (let c of h.children) {
-                    handleData.children.push(ref(c));
-                }
-
-                if (h.mirrorHandle) {
-                    handleData.mirrorHandle = {
-                        mirrored: ref(h.mirrorHandle.mirrored),
-                        reference: ref(h.mirrorHandle.reference)
-                    }
-                }
-
-                handles.push(handleData);
-
-            }
-
-
-            // Result
             return {
-                points: points,
                 patches: patches,
-                handles: handles
+                controlPoints: controlPoints
             }
-
 
         }
 
@@ -406,37 +349,29 @@
 
             this.dispose();
 
-            let points = [];
-            savedInstance.points.forEach(p => points.push(new THREE.Vector3(p.x, p.y, 0)));
+            let controlPoints = savedInstance.controlPoints.map(p => {
+                return new ControlPoint(this.ownerProjection, p.x, p.y, p.z);
+            })
 
-            for (let patchData of savedInstance.patches) {
-                let controlPoints = [];
-                let domain = new Domain(patchData.domain.u0, patchData.domain.v0,
-                    patchData.domain.u1, patchData.domain.v1);
-
-                patchData.points.forEach(i => controlPoints.push(points[i]));
-                this.bezierPatches.push(new BezierPatch(this.ownerProjection, domain, controlPoints));
-            }
-
-            for (let handleData of savedInstance.handles) {
-                this.handles.push(new Handle(this.ownerProjection, points[handleData.point]));
-            }
-
-            for (let i = 0; i < this.handles.length; i++) {
-                let handleData = savedInstance.handles[i];
-                this.handles[i].addChildren(...handleData.children.map(i => this.handles[i]));
-
-                if (handleData.mirrorHandle) {
-                    this.handles[i].mirror(
-                        this.handles[handleData.mirrorHandle.mirrored],
-                        this.handles[handleData.mirrorHandle.reference]
+            for (let i = 0; i < controlPoints.length; i++) {
+                let cpData = savedInstance.controlPoints[i];
+                controlPoints[i].addChildren(...cpData.children.map(i => controlPoints[i]));
+                if(cpData.mirrorPoint) {
+                    controlPoints[i].mirror(
+                        controlPoints[cpData.mirrorPoint.other],
+                        controlPoints[cpData.mirrorPoint.reference]
                     );
                 }
-
-                this.handles[i].create();
-
             }
 
+            for (let patchData of savedInstance.patches) {
+                let cps = patchData.controlPoints.map(i => controlPoints[i]);
+                this.bezierPatches.push(new BezierPatch(
+                    this.ownerProjection,
+                    new Domain(patchData.domain.u0, patchData.domain.v0, patchData.domain.u1, patchData.domain.v1),
+                    cps
+                ));
+            }
 
         }
 
@@ -491,6 +426,12 @@
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
 
+            cp.forEach(c => c.update());
+
+        }
+
+        dispose() {
+            this.controlPoints.forEach(p => p.dispose());
         }
 
     }
@@ -565,9 +506,6 @@
             const gs1 = gs + 1;
             const n = gs1 * gs1;
             this.meshes = {};
-
-            // Update handles
-            this.updateHandleStyles();
 
 
             // Initialize three.js scene
@@ -777,7 +715,6 @@
         restoreHistory() {
             let current = this.history.current();
             this.patch.restore(current.patchData);
-            this.updateHandleStyles();
         }
 
         saveHistory() {
@@ -796,8 +733,6 @@
             window.requestAnimationFrame(this.loop.bind(this));
 
             this.updateProjectionMatrix();
-            for (let h of this.patch.handles)
-                h.reposition();
             this.updatePatch();
             this.updateMeshes();
 
@@ -825,14 +760,6 @@
             }
 
             return vRes.multiplyScalar(f);
-        }
-
-
-        updateHandleStyles() {
-            for (let h of this.patch.handles) {
-                h.domElement.style.backgroundColor = this.options.handleColor;
-                h.domElement.style.display = this.options.preview ? "none" : null;
-            }
         }
 
         updatePatch() {
@@ -885,23 +812,27 @@
 
             // Update handle lines 
             {
+
                 let linesGeometry = this.meshes.handleLines.geometry;
                 let linesPositions = linesGeometry.attributes.position;
                 let count = 0;
 
-                this.patch.handles.filter(h => h.parent).forEach(h => {
+                for (let patch of this.patch.bezierPatches) {
+                    for (let cp of patch.controlPoints) {
+                        for (let child of cp.children) {
 
-                    linesPositions.array[count * 3 + 0] = h.point.x;
-                    linesPositions.array[count * 3 + 1] = h.point.y;
-                    linesPositions.array[count * 3 + 2] = 0.02;
+                            linesPositions.array[count * 3 + 0] = cp.x;
+                            linesPositions.array[count * 3 + 1] = cp.y;
+                            linesPositions.array[count * 3 + 2] = 0.02;
 
-                    linesPositions.array[count * 3 + 3] = h.parent.point.x;
-                    linesPositions.array[count * 3 + 4] = h.parent.point.y;
-                    linesPositions.array[count * 3 + 5] = 0.02;
+                            linesPositions.array[count * 3 + 3] = child.x;
+                            linesPositions.array[count * 3 + 4] = child.y;
+                            linesPositions.array[count * 3 + 5] = 0.02;
 
-                    count += 2;
-
-                });
+                            count += 2;
+                        }
+                    }
+                }
 
                 linesPositions.needsUpdate = true;
 
@@ -1005,9 +936,8 @@
         mouseup(evt) {
             if (this.selectedHandle) {
 
-                if (this.dragHandleInfo.position.distanceTo(this.selectedHandle.point) > 0) {
+                if (this.dragHandleInfo.position.distanceTo(this.selectedHandle) > 0) {
                     this.saveHistory();
-                    console.log(this.history);
                 }
 
                 this.dragHandleInfo = null;
@@ -1045,8 +975,9 @@
 
         setSelectedHandle(handle) {
             this.selectedHandle = handle;
+
             this.dragHandleInfo = {
-                position: handle.point.clone(),
+                position: new THREE.Vector3().copy(handle),
                 patchData: this.patch.save()
             }
         }
