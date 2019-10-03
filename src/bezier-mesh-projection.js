@@ -179,7 +179,7 @@
             }
         }
 
-        move(x, y, mirror) {
+        move(x, y) {
             let offset = this.ownerProjection.screenToWorld(x, y).sub(this.point);
 
             this.point.add(offset);
