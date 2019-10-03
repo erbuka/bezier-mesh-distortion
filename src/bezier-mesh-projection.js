@@ -92,6 +92,35 @@
             }
         }
 
+        static deCasteljau(t, ...points) {
+            let result = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                result.push(new THREE.Vector3().copy(points[i]).lerp(points[i + 1], t));
+            }
+            return result;
+        }
+
+        static subdivideCurve(t, ...points) {
+
+            let c0 = [points[0].clone()];
+            let c1 = [points[points.length - 1].clone()];
+
+            let done = false;
+
+            while (!done) {
+                points = this.deCasteljau(t, points);
+
+                c0.push(points[0].clone());
+                c1.splice(0, 0, points[points.length - 1].clone());
+
+                done = points.length === 1;
+
+            }
+
+            return [c0, c1];
+
+        }
+
         static computeBezierCurve3(t, p0, p1, p2, p3) {
             let result = buffers.vec3[0].set(0, 0, 0);
 
@@ -418,9 +447,6 @@
             }
         }
 
-        subdivide(u, v) {
-
-        }
 
         update() {
             this.bezierPatches.forEach(p => p.update());
