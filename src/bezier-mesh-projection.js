@@ -128,6 +128,14 @@
     }
 
     class Util {
+
+        static makeArray(size, ctor) {
+            let r = new Array(size);
+            for (let i = 0; i < size; i++)
+                r[i] = new ctor();
+            return r;
+        }
+
         /**
          * Computes the Bernsetin polinomial of grade 3
          * @param {number} i Index 
