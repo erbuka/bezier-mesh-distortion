@@ -220,21 +220,27 @@
 
         }
 
-        static computeBezierCurve3(t, p0, p1, p2, p3) {
+    }
+
+    class BezierCurve3 {
+        constructor(...pts) {
+            if (pts.length !== 4)
+                throw new Error("4 points are required for a bezier curve");
+            this.points = pts.map(x => x);
+        }
+
+        compute(t) {
             let result = buffers.vec3[0].set(0, 0, 0);
+            let v = buffers.vec3[1];
 
-            let pts = [
-                buffers.vec3[1].copy(p0),
-                buffers.vec3[2].copy(p1),
-                buffers.vec3[3].copy(p2),
-                buffers.vec3[4].copy(p3),
-            ];
-
-            for (let i = 0; i < pts.length; i++)
-                result.add(pts[i].multiplyScalar(this.computeBernsteinBasis3(i, t)));
+            for (let i = 0; i < this.points.length; i++)
+                result.add(v.copy(this.points[i]).multiplyScalar(Util.computeBernsteinBasis3(i, t)));
 
             return result;
+        }
 
+        subdivide(t) {
+            return Util.subdivideCurve(this.points).map(v => new BezierCurve3(v));
         }
 
     }
@@ -363,7 +369,7 @@
 
             this.dispose();
 
-            let initialBezierPatch = new BezierPatch(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
+            let initialBezierPatch = new BezierPatch3(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
             this.bezierPatchesGrid = new Grid(1, 1);
             this.bezierPatchesGrid.set(0, 0, initialBezierPatch);
 
@@ -476,7 +482,7 @@
                 let cps = patchData.controlPoints.map(i => controlPoints[i]);
                 let row = Math.floor(i / savedInstance.rows);
                 let col = i % savedInstance.rows;
-                this.bezierPatchesGrid.set(row, col, new BezierPatch(
+                this.bezierPatchesGrid.set(row, col, new BezierPatch3(
                     this.ownerProjection,
                     new Domain(patchData.domain.u0, patchData.domain.v0, patchData.domain.u1, patchData.domain.v1),
                     cps
@@ -636,7 +642,7 @@
 
     }
 
-    class BezierPatch {
+    class BezierPatch3 {
         constructor(ownerProjection, domain, controlPoints) {
             this.ownerProjection = ownerProjection;
             this.controlPoints = controlPoints;
@@ -650,21 +656,21 @@
             let ruledV = new THREE.Vector3();
             let bilinearUV = new THREE.Vector3();
 
-            ruledU
-                .copy(Util.computeBezierCurve3(v, cp[0], cp[4], cp[8], cp[12]))
-                .lerp(Util.computeBezierCurve3(v, cp[3], cp[7], cp[11], cp[15]), u);
+            let u0 = new BezierCurve3(cp[0], cp[4], cp[8], cp[12]);
+            let u1 = new BezierCurve3(cp[3], cp[7], cp[11], cp[15]);
+            let v0 = new BezierCurve3(cp[0], cp[1], cp[2], cp[3]);
+            let v1 = new BezierCurve3(cp[12], cp[13], cp[14], cp[15]);
 
-            ruledV
-                .copy(Util.computeBezierCurve3(u, cp[0], cp[1], cp[2], cp[3]))
-                .lerp(Util.computeBezierCurve3(u, cp[12], cp[13], cp[14], cp[15]), v);
+            ruledU.copy(u0.compute(v)).lerp(u1.compute(v), u);
+            ruledV.copy(v0.compute(u)).lerp(v1.compute(u), v);
 
-            let v0 = buffers.vec3[0];
+            let vec = buffers.vec3[0];
 
             bilinearUV
-                .add(v0.copy(cp[0]).multiplyScalar((1 - u) * (1 - v)))
-                .add(v0.copy(cp[3]).multiplyScalar(u * (1 - v)))
-                .add(v0.copy(cp[12]).multiplyScalar(v * (1 - u)))
-                .add(v0.copy(cp[15]).multiplyScalar(u * v));
+                .add(vec.copy(cp[0]).multiplyScalar((1 - u) * (1 - v)))
+                .add(vec.copy(cp[3]).multiplyScalar(u * (1 - v)))
+                .add(vec.copy(cp[12]).multiplyScalar(v * (1 - u)))
+                .add(vec.copy(cp[15]).multiplyScalar(u * v));
 
             return ruledV.add(ruledV).sub(bilinearUV);
 
@@ -704,14 +710,7 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
-            
-            /*
-            cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
-            cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
-            cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
-            cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-            */
-            cp.forEach(c => c.update());
+
         }
 
         dispose() {
