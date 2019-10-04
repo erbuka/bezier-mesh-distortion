@@ -268,7 +268,9 @@
         }
 
         addChildren(...children) {
-            this.children.push(...children);
+            for (let c of children)
+                if (!this.children.includes(c))
+                    this.children.push(c);
             children.forEach(c => c.parent = this);
         }
 
@@ -496,6 +498,25 @@
             this.bezierPatchesGrid.forEach(p => p.update());
         }
 
+        relinkHandles() {
+            for (let p of this.bezierPatchesGrid) {
+                let cp = p.controlPoints;
+                cp.forEach(cp => {
+                    cp.children.forEach(c => c.parent = null);
+                    cp.children = [];
+                });
+            }
+
+            for (let p of this.bezierPatchesGrid) {
+                let cp = p.controlPoints;
+                cp[0].addChildren(cp[1], cp[4]);
+                cp[3].addChildren(cp[2], cp[7]);
+                cp[12].addChildren(cp[8], cp[13]);
+                cp[15].addChildren(cp[14], cp[11]);
+            }
+
+        }
+
         subdivideHorizontal(v) {
             let rowIndex = this.bezierPatchesGrid.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
             let row = this.bezierPatchesGrid.rows()[rowIndex];
@@ -607,6 +628,8 @@
 
             this.bezierPatchesGrid.deleteRow(rowIndex);
 
+            this.relinkHandles();
+
 
         }
 
@@ -644,6 +667,7 @@
 
                 let u2 = u0.lerp(u1, v);
                 let v2 = v0.lerp(v1, u);
+
 
                 return u2.lerp(v2, 0.5);
             } else if (mode === "bezier") {
