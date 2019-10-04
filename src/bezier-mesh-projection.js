@@ -457,7 +457,7 @@
                 .add(vec.copy(cp[12]).multiplyScalar(v * (1 - u)))
                 .add(vec.copy(cp[15]).multiplyScalar(u * v));
 
-            return ruledV.add(ruledV).sub(bilinearUV);
+            return ruledV.add(ruledU).sub(bilinearUV);
 
 
         }
@@ -472,7 +472,7 @@
 
                 return v0.lerp(v1, v);
             } else if (mode === "bezier") {
-
+                /*
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
                 for (let y = 0; y < 4; y++) {
@@ -482,6 +482,8 @@
                     }
                 }
                 return pRes;
+                */
+               return this.coons(u, v);
 
             } else {
                 throw new Error("Invalid patch compute mode: " + mode);
