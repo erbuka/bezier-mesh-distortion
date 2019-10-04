@@ -33,6 +33,7 @@
 
         deleteRow(i) {
             this.cells.splice(i * this.colCount, this.colCount);
+            this.rowCount--;
         }
 
         rows() {
@@ -224,7 +225,7 @@
         }
 
         contains(u, v) {
-            return u >= this.u0 && u <= this.v1 && v >= this.v0 && v <= this.v1;
+            return u >= this.u0 && u <= this.u1 && v >= this.v0 && v <= this.v1;
         }
     }
 
@@ -464,6 +465,7 @@
                 if (p.domain.contains(u, v))
                     return p.compute(u, v, mode);
             };
+            debugger;
         }
 
 
@@ -523,13 +525,13 @@
                 } else {
                     ptsBottom[0] = cur.controlPoints[0];
                     ptsBottom[4] = cur.controlPoints[4].copy(a[0][1]);
-                    ptsBottom[8] = ControlPoint.fromVector(a[0][2]);
+                    ptsBottom[8] = ControlPoint.fromVector(this.ownerProjection, a[0][2]);
 
                     ptsTop[12] = cur.controlPoints[12];
-                    ptsTop[8] = cur.controlPoints[8];
-                    ptsTop[4] = ControlPoint.fromVector(a[1][1]);
+                    ptsTop[8] = cur.controlPoints[8].copy(a[1][2]);
+                    ptsTop[4] = ControlPoint.fromVector(this.ownerProjection, a[1][1]);
 
-                    ptsBottom[12] = ptsTop[0] = ControlPoint.fromVector(a[1][0]);
+                    ptsBottom[12] = ptsTop[0] = ControlPoint.fromVector(this.ownerProjection, a[1][0]);
 
                 }
 
@@ -537,7 +539,7 @@
                 ptsBottom[2] = cur.controlPoints[2];
                 ptsBottom[3] = cur.controlPoints[3];
                 ptsBottom[7] = cur.controlPoints[7].copy(d[0][1]);
-                ptsBottom[11] = ControlPoint.fromVector(d[0][2]);
+                ptsBottom[11] = ControlPoint.fromVector(this.ownerProjection, d[0][2]);
 
                 ptsBottom[5] = cur.controlPoints[5];
                 ptsBottom[6] = cur.controlPoints[6];
@@ -548,16 +550,16 @@
                 ptsTop[14] = cur.controlPoints[14];
                 ptsTop[15] = cur.controlPoints[15];
                 ptsTop[11] = cur.controlPoints[11].copy(d[1][2]);
-                ptsTop[7] = ControlPoint.fromVector(d[1][1]);
-                
+                ptsTop[7] = ControlPoint.fromVector(this.ownerProjection, d[1][1]);
+
                 ptsTop[5] = new ControlPoint(this.ownerProjection);
                 ptsTop[6] = new ControlPoint(this.ownerProjection);
                 ptsTop[9] = cur.controlPoints[9];
                 ptsTop[10] = cur.controlPoints[10];
 
-                ptsBottom[13] = ptsTop[1] = ControlPoint.fromVector(b[1][0]);
-                ptsBottom[14] = ptsTop[2] = ControlPoint.fromVector(c[1][0]);
-                ptsBottom[15] = ptsTop[3] = ControlPoint.fromVector(d[1][0]);
+                ptsBottom[13] = ptsTop[1] = ControlPoint.fromVector(this.ownerProjection, b[1][0]);
+                ptsBottom[14] = ptsTop[2] = ControlPoint.fromVector(this.ownerProjection, c[1][0]);
+                ptsBottom[15] = ptsTop[3] = ControlPoint.fromVector(this.ownerProjection, d[1][0]);
 
                 bottomPatches.push(new BezierPatch(
                     this.ownerProjection,
@@ -567,7 +569,8 @@
 
                 topPatches.push(new BezierPatch(
                     this.ownerProjection,
-                    new Domain(cur.domain.u0, v, cur.domain.u1, cur.domain.v1)
+                    new Domain(cur.domain.u0, v, cur.domain.u1, cur.domain.v1),
+                    ptsTop
                 ));
             }
 
@@ -980,6 +983,8 @@
                 for (let x = 0; x < gs + 1; x++) {
                     for (let y = 0; y < gs + 1; y++) {
                         let point = this.patch.compute(x / gs, y / gs, this.options.mode);
+                        if (!point)
+                            debugger;
                         this.gridPoints[y * (gs + 1) + x].copy(point);
                     }
                 }
