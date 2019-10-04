@@ -612,13 +612,13 @@
                 ptsBottom[14] = ptsTop[2] = ControlPoint.fromVector(this.ownerProjection, c[1][0]);
                 ptsBottom[15] = ptsTop[3] = ControlPoint.fromVector(this.ownerProjection, d[1][0]);
 
-                bottomPatches.push(new BezierPatch(
+                bottomPatches.push(new BezierPatch3(
                     this.ownerProjection,
                     new Domain(cur.domain.u0, cur.domain.v0, cur.domain.u1, v),
                     ptsBottom
                 ));
 
-                topPatches.push(new BezierPatch(
+                topPatches.push(new BezierPatch3(
                     this.ownerProjection,
                     new Domain(cur.domain.u0, v, cur.domain.u1, cur.domain.v1),
                     ptsTop
@@ -710,6 +710,7 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
+            cp.forEach(p=>p.update());
 
         }
 
