@@ -175,13 +175,15 @@
 
         static subdivideCurve(t, ...points) {
 
+            points = points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+
             let c0 = [points[0].clone()];
             let c1 = [points[points.length - 1].clone()];
 
             let done = false;
 
             while (!done) {
-                points = this.deCasteljau(t, points);
+                points = this.deCasteljau(t, ...points);
 
                 c0.push(points[0].clone());
                 c1.splice(0, 0, points[points.length - 1].clone());
