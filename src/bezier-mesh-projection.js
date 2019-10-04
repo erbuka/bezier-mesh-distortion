@@ -160,7 +160,7 @@
         constructor(...pts) {
             if (pts.length !== 4)
                 throw new Error("4 points are required for a bezier curve");
-            this.points = pts.map(x => x);
+            this.points = pts;
         }
 
         compute(t) {
@@ -824,8 +824,8 @@
                         let idx = y * (gs + 1) + x;
                         let bufIdx = idx * 3;
 
-                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] =  this.gridPoints[idx].x;
-                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] =  this.gridPoints[idx].y;
+                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] = this.gridPoints[idx].x;
+                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] = this.gridPoints[idx].y;
                         linesPositions.array[bufIdx + 2] = 0.01;
                         planePositions.array[bufIdx + 2] = 0;
                     }
