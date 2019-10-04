@@ -154,23 +154,6 @@
 
         }
 
-        static computeBezierCurve3(t, p0, p1, p2, p3) {
-            let result = buffers.vec3[0].set(0, 0, 0);
-
-            let pts = [
-                buffers.vec3[1].copy(p0),
-                buffers.vec3[2].copy(p1),
-                buffers.vec3[3].copy(p2),
-                buffers.vec3[4].copy(p3),
-            ];
-
-            for (let i = 0; i < pts.length; i++)
-                result.add(pts[i].multiplyScalar(this.computeBernsteinBasis3(i, t)));
-
-            return result;
-
-        }
-
     }
 
     class BezierCurve3 {
