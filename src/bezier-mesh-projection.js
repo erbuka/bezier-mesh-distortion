@@ -683,21 +683,6 @@
                 v1.lerp(this.controlPoints[15], u);
 
                 return v0.lerp(v1, v);
-            } else if (mode === "bezierContour") {
-
-
-                let c = this.controlPoints;
-
-                let u0 = Util.computeBezierCurve3(u, c[0], c[1], c[2], c[3]).clone();
-                let u1 = Util.computeBezierCurve3(u, c[12], c[13], c[14], c[15]).clone();
-                let v0 = Util.computeBezierCurve3(v, c[0], c[4], c[8], c[12]).clone();
-                let v1 = Util.computeBezierCurve3(v, c[3], c[7], c[11], c[15]).clone();
-
-                let u2 = u0.lerp(u1, v);
-                let v2 = v0.lerp(v1, u);
-
-
-                return u2.lerp(v2, 0.5);
             } else if (mode === "bezier") {
 
                 let pRes = buffers.vec3[0].set(0, 0, 0);
@@ -718,16 +703,12 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
-            /*
+            
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-            */
-            cp[5].copy(this.coons(1 / 3, 1 / 3));
-            cp[6].copy(this.coons(2 / 3, 1 / 3));
-            cp[9].copy(this.coons(1 / 3, 2 / 3));
-            cp[10].copy(this.coons(2 / 3, 2 / 3));
+            
             cp.forEach(c => c.update());
         }
 
