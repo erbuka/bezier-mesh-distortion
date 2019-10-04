@@ -68,6 +68,29 @@
 
     class Util {
 
+
+
+        /**
+         * Computes a weighted average of the given vector array
+         * @private
+         * @param {THREE.Vector3[]} p The points
+         * @param {number[]} w The weights
+         * @param {number} [f] Global factor
+         */
+        static weightedAverage(p, w, f) {
+            if (p.length != w.length)
+                throw new Error("weightedAverage(): invalid parameters");
+
+            f = f || 1;
+
+            let vRes = buffers.vec3[0].set(0, 0, 0);
+            for (let i = 0; i < p.length; i++) {
+                vRes.add(buffers.vec3[1].copy(p[i]).multiplyScalar(w[i]));
+            }
+
+            return vRes.multiplyScalar(f);
+        }
+
         static makeArray(size, ctor, ...args) {
             let r = new Array(size);
             for (let i = 0; i < size; i++)
@@ -448,14 +471,11 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
-
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-
             cp.forEach(c => c.update());
-
         }
 
         dispose() {
@@ -769,26 +789,6 @@
             this.renderer.render(this.scene, this.camera);
         }
 
-        /**
-         * Computes a weighted average of the given vector array
-         * @private
-         * @param {THREE.Vector3[]} p The points
-         * @param {number[]} w The weights
-         * @param {number} [f] Global factor
-         */
-        weightedAverage(p, w, f) {
-            if (p.length != w.length)
-                throw new Error("weightedAverage(): invalid parameters");
-
-            f = f || 1;
-
-            let vRes = this._buffers.vec3[0].set(0, 0, 0);
-            for (let i = 0; i < p.length; i++) {
-                vRes.add(this._buffers.vec3[1].copy(p[i]).multiplyScalar(w[i]));
-            }
-
-            return vRes.multiplyScalar(f);
-        }
 
         updatePatch() {
             this.patch.update();
