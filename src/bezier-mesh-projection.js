@@ -666,25 +666,6 @@
 
             }
 
-            // Create grid points mesh
-            {
-                let n = (gs + 1) * (gs + 1);
-                let dotsGeom = new THREE.BufferGeometry();
-                let dotsPositions = new Float32Array(3 * n);
-
-                dotsGeom.addAttribute("position", new THREE.BufferAttribute(dotsPositions, 3));
-
-                let dots = new THREE.Points(dotsGeom, new THREE.PointsMaterial({
-                    color: this.options.gridColor,
-                    size: 4,
-                    opacity: 0.5,
-                    transparent: true
-                }));
-
-                this.scene.add(dots);
-
-                this.meshes.gridDots = dots;
-            }
 
             // Create grid lines mesh
             {
@@ -730,7 +711,6 @@
 
             }
 
-            this.meshes.gridDots.visible = !this.options.preview;
             this.meshes.handleLines.visible = !this.options.preview;
             this.meshes.gridLines.visible = !this.options.preview;
 
@@ -836,7 +816,6 @@
 
             // Update meshes
             {
-                let dotsPositions = this.meshes.gridDots.geometry.attributes.position;
                 let linesPositions = this.meshes.gridLines.geometry.attributes.position;
                 let planePositions = this.meshes.plane.geometry.attributes.position;
 
@@ -845,15 +824,13 @@
                         let idx = y * (gs + 1) + x;
                         let bufIdx = idx * 3;
 
-                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] = dotsPositions.array[bufIdx + 0] = this.gridPoints[idx].x;
-                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] = dotsPositions.array[bufIdx + 1] = this.gridPoints[idx].y;
+                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] =  this.gridPoints[idx].x;
+                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] =  this.gridPoints[idx].y;
                         linesPositions.array[bufIdx + 2] = 0.01;
                         planePositions.array[bufIdx + 2] = 0;
-                        dotsPositions.array[bufIdx + 2] = 0.01;
                     }
                 }
 
-                dotsPositions.needsUpdate = true;
                 linesPositions.needsUpdate = true;
                 planePositions.needsUpdate = true;
 
