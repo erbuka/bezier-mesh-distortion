@@ -499,16 +499,12 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
-            /*
+            
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-            */
-            cp[5].copy(this.coons(1 / 3, 1 / 3));
-            cp[6].copy(this.coons(2 / 3, 1 / 3));
-            cp[9].copy(this.coons(1 / 3, 2 / 3));
-            cp[10].copy(this.coons(2 / 3, 2 / 3));
+            
             cp.forEach(c => c.update());
         }
 
