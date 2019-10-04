@@ -226,7 +226,7 @@
         constructor(...pts) {
             if (pts.length !== 4)
                 throw new Error("4 points are required for a bezier curve");
-            this.points = pts.map(x => x);
+            this.points = pts;
         }
 
         compute(t) {
@@ -672,7 +672,7 @@
                 .add(vec.copy(cp[12]).multiplyScalar(v * (1 - u)))
                 .add(vec.copy(cp[15]).multiplyScalar(u * v));
 
-            return ruledV.add(ruledV).sub(bilinearUV);
+            return ruledV.add(ruledU).sub(bilinearUV);
 
 
         }
@@ -691,7 +691,7 @@
 
                 return v0.lerp(v1, v);
             } else if (mode === "bezier") {
-
+                /*
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
                 for (let y = 0; y < 4; y++) {
@@ -701,6 +701,8 @@
                     }
                 }
                 return pRes;
+                */
+               return this.coons(u, v);
 
             } else {
                 throw new Error("Invalid patch compute mode: " + mode);
@@ -1038,8 +1040,8 @@
                         let idx = y * (gs + 1) + x;
                         let bufIdx = idx * 3;
 
-                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] =  this.gridPoints[idx].x;
-                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] =  this.gridPoints[idx].y;
+                        linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] = this.gridPoints[idx].x;
+                        linesPositions.array[bufIdx + 1] = planePositions.array[bufIdx + 1] = this.gridPoints[idx].y;
                         linesPositions.array[bufIdx + 2] = 0.01;
                         planePositions.array[bufIdx + 2] = 0;
                     }
