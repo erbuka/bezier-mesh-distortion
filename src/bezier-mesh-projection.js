@@ -367,10 +367,11 @@
             this.bezierPatchesGrid = new Grid(1, 1);
             this.bezierPatchesGrid.set(0, 0, initialBezierPatch);
 
-            cp[0].addChildren(cp[1], cp[4]);
-            cp[3].addChildren(cp[2], cp[7]);
-            cp[15].addChildren(cp[11], cp[14]);
-            cp[12].addChildren(cp[8], cp[13]);
+            cp[0].addChildren(cp[1], cp[4], cp[5]);
+            cp[3].addChildren(cp[2], cp[7], cp[6]);
+            cp[15].addChildren(cp[11], cp[14], cp[10]);
+            cp[12].addChildren(cp[8], cp[13], cp[9]);
+
 
             cp[1].mirror(cp[4], cp[0]);
             cp[4].mirror(cp[1], cp[0]);
@@ -585,10 +586,10 @@
                 ptsBottom[7] = cur.controlPoints[7].copy(d[0][1]);
                 ptsBottom[11] = ControlPoint.fromVector(this.ownerProjection, d[0][2]);
 
-                ptsBottom[5] = cur.controlPoints[5];
-                ptsBottom[6] = cur.controlPoints[6];
-                ptsBottom[9] = new ControlPoint(this.ownerProjection);
-                ptsBottom[10] = new ControlPoint(this.ownerProjection);
+                ptsBottom[5] = cur.controlPoints[5].copy(b[0][1]);
+                ptsBottom[6] = cur.controlPoints[6].copy(c[0][1]);
+                ptsBottom[9] = ControlPoint.fromVector(this.ownerProjection, b[0][2]);
+                ptsBottom[10] = ControlPoint.fromVector(this.ownerProjection, c[0][2]);
 
                 ptsTop[13] = cur.controlPoints[13];
                 ptsTop[14] = cur.controlPoints[14];
@@ -596,10 +597,10 @@
                 ptsTop[11] = cur.controlPoints[11].copy(d[1][2]);
                 ptsTop[7] = ControlPoint.fromVector(this.ownerProjection, d[1][1]);
 
-                ptsTop[5] = new ControlPoint(this.ownerProjection);
-                ptsTop[6] = new ControlPoint(this.ownerProjection);
-                ptsTop[9] = cur.controlPoints[9];
-                ptsTop[10] = cur.controlPoints[10];
+                ptsTop[5] = ControlPoint.fromVector(this.ownerProjection, b[1][1]);
+                ptsTop[6] = ControlPoint.fromVector(this.ownerProjection, c[1][1]);
+                ptsTop[9] = cur.controlPoints[9].copy(b[1][2]);
+                ptsTop[10] = cur.controlPoints[10].copy(c[1][2]);
 
                 ptsBottom[13] = ptsTop[1] = ControlPoint.fromVector(this.ownerProjection, b[1][0]);
                 ptsBottom[14] = ptsTop[2] = ControlPoint.fromVector(this.ownerProjection, c[1][0]);
@@ -704,11 +705,12 @@
             // Compute middle control points
             let cp = this.controlPoints;
             
+            /*
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-            
+            */
             cp.forEach(c => c.update());
         }
 
