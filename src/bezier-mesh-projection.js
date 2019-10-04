@@ -31,6 +31,10 @@
             this.cells[i * this.colCount + j] = v;
         }
 
+        deleteRow(i) {
+            this.cells.splice(i * this.colCount, this.colCount);
+        }
+
         rows() {
             let rows = [];
 
@@ -470,7 +474,7 @@
             let row = this.bezierPatchesGrid.rows()[rowIndex];
 
             let topPatches = [];
-            let bottomPacthes = [];
+            let bottomPatches = [];
 
 
             /* Subdivided curves
@@ -500,8 +504,8 @@
                 let d = Util.subdivideCurve(v, cur.controlPoints[3], cur.controlPoints[7], cur.controlPoints[11], cur.controlPoints[15]);
 
 
-                let ptsTop = Util.makeArray(16, THREE.Vector3);
-                let ptsBottom = Util.makeArray(16, THREE.Vector3);
+                let ptsTop = new Array(16).fill(null);
+                let ptsBottom = new Array(16).fill(null);
 
                 if (j > 0) {
                     ptsBottom[0] = bottomPatches[j - 1].controlPoints[3];
@@ -514,37 +518,44 @@
                     ptsTop[8] = topPatches[j - 1].controlPoints[11];
                     ptsTop[12] = topPatches[j - 1].controlPoints[15];
 
-                    // Create handles here
                 } else {
                     ptsBottom[0] = cur.controlPoints[0];
                     ptsBottom[4] = cur.controlPoints[4].copy(a[0][1]);
-                    ptsBottom[8] = a[0][2].clone();
+                    ptsBottom[8] = ControlPoint.fromVector(a[0][2]);
 
                     ptsTop[12] = cur.controlPoints[12];
                     ptsTop[8] = cur.controlPoints[8];
-                    ptsTop[4] = a[1][1].clone();
+                    ptsTop[4] = ControlPoint.fromVector(a[1][1]);
 
-                    ptsBottom[12] = ptsTop[0] = a[1][0].clone();
+                    ptsBottom[12] = ptsTop[0] = ControlPoint.fromVector(a[1][0]);
 
-
-                    // Create handles here
                 }
 
                 ptsBottom[1] = cur.controlPoints[1];
                 ptsBottom[2] = cur.controlPoints[2];
                 ptsBottom[3] = cur.controlPoints[3];
                 ptsBottom[7] = cur.controlPoints[7].copy(d[0][1]);
-                ptsBottom[11] = d[0][2].clone();
+                ptsBottom[11] = ControlPoint.fromVector(d[0][2]);
+
+                ptsBottom[5] = cur.controlPoints[5];
+                ptsBottom[6] = cur.controlPoints[6];
+                ptsBottom[9] = new ControlPoint(this.ownerProjection);
+                ptsBottom[10] = new ControlPoint(this.ownerProjection);
 
                 ptsTop[13] = cur.controlPoints[13];
                 ptsTop[14] = cur.controlPoints[14];
                 ptsTop[15] = cur.controlPoints[15];
                 ptsTop[11] = cur.controlPoints[11].copy(d[1][2]);
-                ptsTop[7] = d[1][1].clone();
+                ptsTop[7] = ControlPoint.fromVector(d[1][1]);
+                
+                ptsTop[5] = new ControlPoint(this.ownerProjection);
+                ptsTop[6] = new ControlPoint(this.ownerProjection);
+                ptsTop[9] = cur.controlPoints[9];
+                ptsTop[10] = cur.controlPoints[10];
 
-                ptsBottom[13] = ptsTop[1] = b[1][0].clone();
-                ptsBottom[14] = ptsTop[2] = c[1][0].clone();
-                ptsBottom[15] = ptsTop[3] = d[1][0].clone();
+                ptsBottom[13] = ptsTop[1] = ControlPoint.fromVector(b[1][0]);
+                ptsBottom[14] = ptsTop[2] = ControlPoint.fromVector(c[1][0]);
+                ptsBottom[15] = ptsTop[3] = ControlPoint.fromVector(d[1][0]);
 
                 bottomPatches.push(new BezierPatch(
                     this.ownerProjection,
@@ -557,6 +568,16 @@
                     new Domain(cur.domain.u0, v, cur.domain.u1, cur.domain.v1)
                 ));
             }
+
+            this.bezierPatchesGrid.inserRow(rowIndex + 1);
+            this.bezierPatchesGrid.inserRow(rowIndex + 2);
+
+            for (let j = 0; j < this.bezierPatchesGrid.colCount; j++) {
+                this.bezierPatchesGrid.set(rowIndex + 1, j, bottomPatches[j]);
+                this.bezierPatchesGrid.set(rowIndex + 2, j, topPatches[j]);
+            }
+
+            this.bezierPatchesGrid.deleteRow(rowIndex);
 
 
         }
