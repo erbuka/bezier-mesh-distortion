@@ -609,7 +609,22 @@
                 v1.lerp(this.controlPoints[15], u);
 
                 return v0.lerp(v1, v);
-            } else {
+            } else if (mode === "bezierContour") {
+
+
+                let c = this.controlPoints;
+
+                let u0 = Util.computeBezierCurve3(u, c[0], c[1], c[2], c[3]).clone();
+                let u1 = Util.computeBezierCurve3(u, c[12], c[13], c[14], c[15]).clone();
+                let v0 = Util.computeBezierCurve3(v, c[0], c[4], c[8], c[12]).clone();
+                let v1 = Util.computeBezierCurve3(v, c[3], c[7], c[11], c[15]).clone();
+
+                let u2 = u0.lerp(u1, v);
+                let v2 = v0.lerp(v1, u);
+
+                return u2.lerp(v2, 0.5);
+            } else if (mode === "bezier") {
+
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
                 for (let y = 0; y < 4; y++) {
@@ -619,6 +634,9 @@
                     }
                 }
                 return pRes;
+
+            } else {
+                throw new Error("Invalid patch compute mode: " + mode);
             }
         }
 
