@@ -642,6 +642,34 @@
             this.domain = domain;
         }
 
+        coons(u, v) {
+            let cp = this.controlPoints;
+
+            let ruledU = new THREE.Vector3();
+            let ruledV = new THREE.Vector3();
+            let bilinearUV = new THREE.Vector3();
+
+            ruledU
+                .copy(Util.computeBezierCurve3(v, cp[0], cp[4], cp[8], cp[12]))
+                .lerp(Util.computeBezierCurve3(v, cp[3], cp[7], cp[11], cp[15]), u);
+
+            ruledV
+                .copy(Util.computeBezierCurve3(u, cp[0], cp[1], cp[2], cp[3]))
+                .lerp(Util.computeBezierCurve3(u, cp[12], cp[13], cp[14], cp[15]), v);
+
+            let v0 = buffers.vec3[0];
+
+            bilinearUV
+                .add(v0.copy(cp[0]).multiplyScalar((1 - u) * (1 - v)))
+                .add(v0.copy(cp[3]).multiplyScalar(u * (1 - v)))
+                .add(v0.copy(cp[12]).multiplyScalar(v * (1 - u)))
+                .add(v0.copy(cp[15]).multiplyScalar(u * v));
+
+            return ruledV.add(ruledV).sub(bilinearUV);
+
+
+        }
+
         compute(u, v, mode) {
 
             u = (u - this.domain.u0) / (this.domain.u1 - this.domain.u0);
@@ -690,10 +718,16 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
+            /*
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
+            */
+            cp[5].copy(this.coons(1 / 3, 1 / 3));
+            cp[6].copy(this.coons(2 / 3, 1 / 3));
+            cp[9].copy(this.coons(1 / 3, 2 / 3));
+            cp[10].copy(this.coons(2 / 3, 2 / 3));
             cp.forEach(c => c.update());
         }
 
