@@ -414,7 +414,9 @@
                 v1.lerp(this.controlPoints[15], u);
 
                 return v0.lerp(v1, v);
-            } else if(mode === "bezierContour") {
+            } else if (mode === "bezierContour") {
+
+
                 let c = this.controlPoints;
 
                 let u0 = Util.computeBezierCurve3(u, c[0], c[1], c[2], c[3]).clone();
@@ -426,8 +428,8 @@
                 let v2 = v0.lerp(v1, u);
 
                 return u2.lerp(v2, 0.5);
-            } else if(mode === "bezier") {
-                
+            } else if (mode === "bezier") {
+
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
                 for (let y = 0; y < 4; y++) {
