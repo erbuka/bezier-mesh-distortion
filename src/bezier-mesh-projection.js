@@ -356,10 +356,10 @@
             cp[7] = br.clone().lerp(tr, 1 / 3);
             cp[11] = br.clone().lerp(tr, 2 / 3);
 
-            cp[5] = new ControlPoint(this.ownerProjection);
-            cp[6] = new ControlPoint(this.ownerProjection);
-            cp[9] = new ControlPoint(this.ownerProjection);
-            cp[10] = new ControlPoint(this.ownerProjection);
+            cp[5] = cp[0].clone().lerp(cp[15], 1 / 3);
+            cp[10] = cp[0].clone().lerp(cp[15], 2 / 3);
+            cp[9] = cp[12].clone().lerp(cp[3], 1 / 3);
+            cp[6] = cp[12].clone().lerp(cp[3], 2 / 3);
 
             this.dispose();
 
