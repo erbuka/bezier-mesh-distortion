@@ -98,6 +98,24 @@
             return r;
         }
 
+        static computeBernsetinDerivative3(i, t) {
+            let tt = t * t;
+            let mt = 1 - t;
+            let mtt = mt * mt;
+            switch (i) {
+                case 0:
+                    return - 3 * mtt;
+                case 1:
+                    return 3 * (t - 1) * (3 * t - 1);
+                case 2:
+                    return 6 * t - 9 * tt;
+                case 3:
+                    return 3 * tt;
+                default:
+                    throw new Error("Invalid index for B3': " + i);
+            }
+        }
+
         /**
          * Computes the Bernsetin polinomial of grade 3
          * @param {number} i Index 
@@ -161,6 +179,16 @@
             if (pts.length !== 4)
                 throw new Error("4 points are required for a bezier curve");
             this.points = pts;
+        }
+
+        derivative(t) {
+            let result = buffers.vec3[0].set(0, 0, 0);
+            let v = buffers.vec3[1];
+
+            for (let i = 0; i < this.points.length; i++)
+                result.add(v.copy(this.points[i]).multiplyScalar(Util.computeBernsetinDerivative3(i, t)));
+
+            return result;
         }
 
         compute(t) {
@@ -265,6 +293,10 @@
             return new ControlPoint(this.ownerProjection, this.x, this.y, this.z);
         }
 
+        toVector3() {
+            return new THREE.Vector3(this.x, this.y, this.z);
+        }
+
     }
 
     class Patch {
@@ -304,10 +336,10 @@
             let initialBezierPatch = new BezierPatch3(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
             this.bezierPatches.push(initialBezierPatch);
 
-            cp[0].addChildren(cp[1], cp[4]);
-            cp[3].addChildren(cp[2], cp[7]);
-            cp[15].addChildren(cp[11], cp[14]);
-            cp[12].addChildren(cp[8], cp[13]);
+            cp[0].addChildren(cp[1], cp[4], cp[5]);
+            cp[3].addChildren(cp[2], cp[7], cp[6]);
+            cp[15].addChildren(cp[11], cp[14], cp[10]);
+            cp[12].addChildren(cp[8], cp[13], cp[9]);
 
             cp[1].mirror(cp[4], cp[0]);
             cp[4].mirror(cp[1], cp[0]);
@@ -481,7 +513,6 @@
 
                 return v0.lerp(v1, v);
             } else if (mode === "bezier") {
-                /*
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
                 for (let y = 0; y < 4; y++) {
@@ -491,8 +522,6 @@
                     }
                 }
                 return pRes;
-                */
-                return this.coons(u, v);
 
             } else {
                 throw new Error("Invalid patch compute mode: " + mode);
@@ -503,10 +532,12 @@
             // Compute middle control points
             let cp = this.controlPoints;
 
+            /*
             cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
             cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
+            */
 
             cp.forEach(c => c.update());
         }
