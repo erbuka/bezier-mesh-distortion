@@ -736,7 +736,6 @@
 
                 this.meshes.gridLines = new THREE.LineSegments(linesGeom, new THREE.LineBasicMaterial({
                     color: this.options.gridColor,
-                    linewidth: 1,
                     opacity: 0.5,
                     transparent: true
                 }));
@@ -757,7 +756,38 @@
 
             }
 
-            this.meshes.handleLines.visible = !this.options.preview;
+
+            // create patches outline mesh
+            {
+                const vertexCount = 2 * 10000;
+
+                let patchesOutlineGeom = new THREE.BufferGeometry();
+
+                patchesOutlineGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
+
+                this.meshes.patchesOutline = new THREE.LineSegments(patchesOutlineGeom, new THREE.LineBasicMaterial({
+                    color: this.options.handleColor,
+                }));
+                this.scene.add(this.meshes.patchesOutline);
+            }
+
+            // create patches interior lines 
+            {
+                const vertexCount = 2 * 10000;
+
+                let patchesInteriorGeom = new THREE.BufferGeometry();
+
+                patchesInteriorGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
+
+                this.meshes.patchesInterior = new THREE.LineSegments(patchesInteriorGeom, new THREE.LineBasicMaterial({
+                    color: this.options.handleColor,
+                    transparent: true,
+                    opacity: 0.5
+                }));
+                this.scene.add(this.meshes.patchesInterior);
+            }
+
+            this.meshes.handleLines.visible = false;
             this.meshes.gridLines.visible = !this.options.preview;
 
             this.reshape();
@@ -911,6 +941,87 @@
 
                 linesGeometry.setDrawRange(0, count);
 
+            }
+
+            // Update patches outline
+            {
+                let patchesOutlintGeometry = this.meshes.patchesOutline.geometry;
+                let patchesOutlinePosition = patchesOutlintGeometry.attributes.position;
+                let count = 0;
+
+                for (let patch of this.patch.bezierPatches) {
+                    let cps = patch.controlPoints;
+                    let vertices = [
+                        cps[0], cps[1], cps[2], cps[3],
+                        cps[7], cps[11], cps[15], cps[14],
+                        cps[13], cps[12], cps[8], cps[4]
+                    ]
+                    for (let i = 0; i < vertices.length; i++) {
+
+                        patchesOutlinePosition.array[count * 3 + 0] = vertices[i].x;
+                        patchesOutlinePosition.array[count * 3 + 1] = vertices[i].y;
+                        patchesOutlinePosition.array[count * 3 + 2] = 0.03;
+
+                        patchesOutlinePosition.array[(count + 1) * 3 + 0] = vertices[(i + 1) % vertices.length].x;
+                        patchesOutlinePosition.array[(count + 1) * 3 + 1] = vertices[(i + 1) % vertices.length].y;
+                        patchesOutlinePosition.array[(count + 1) * 3 + 2] = 1;
+
+                        count += 2;
+
+                    }
+                }
+
+                patchesOutlinePosition.needsUpdate = true;
+                patchesOutlintGeometry.setDrawRange(0, count)
+
+            }
+
+            // Update patches interior
+            {
+                let patchesInteriorGeometry = this.meshes.patchesInterior.geometry;
+                let patchesInteriorPosition = patchesInteriorGeometry.attributes.position;
+                let count = 0;
+                for (let patch of this.patch.bezierPatches) {
+
+                    let cps = patch.controlPoints;
+
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 1; j < 3; j++) {
+
+                            // Horizontal
+                            let u0 = cps[j * 4 + i];
+                            let u1 = cps[j * 4 + i + 1];
+
+                            patchesInteriorPosition.array[count * 3 + 0] = u0.x;
+                            patchesInteriorPosition.array[count * 3 + 1] = u0.y;
+                            patchesInteriorPosition.array[count * 3 + 2] = 0.03;
+
+                            patchesInteriorPosition.array[count * 3 + 3] = u1.x;
+                            patchesInteriorPosition.array[count * 3 + 4] = u1.y;
+                            patchesInteriorPosition.array[count * 3 + 5] = 0.03;
+
+                            // Vertical
+                            let v0 = cps[i * 4 + j];
+                            let v1 = cps[(i + 1) * 4 + j];
+
+                            patchesInteriorPosition.array[count * 3 + 6] = v0.x;
+                            patchesInteriorPosition.array[count * 3 + 7] = v0.y;
+                            patchesInteriorPosition.array[count * 3 + 8] = 0.03;
+
+                            patchesInteriorPosition.array[count * 3 + 9] = v1.x;
+                            patchesInteriorPosition.array[count * 3 + 10] = v1.y;
+                            patchesInteriorPosition.array[count * 3 + 11] = 0.03;
+
+
+                            count += 4;
+
+                        }
+                    }
+
+                }
+
+                patchesInteriorPosition.needsUpdate = true;
+                patchesInteriorGeometry.setDrawRange(0, count);
             }
 
         }
