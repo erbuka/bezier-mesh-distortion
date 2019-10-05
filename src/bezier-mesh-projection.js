@@ -1166,13 +1166,16 @@
                 this.meshes.patchesInterior = new THREE.LineSegments(patchesInteriorGeom, new THREE.LineBasicMaterial({
                     color: this.options.handleColor,
                     transparent: true,
-                    opacity: 0.5
+                    opacity: 0.35
                 }));
                 this.scene.add(this.meshes.patchesInterior);
             }
 
             this.meshes.handleLines.visible = false;
             this.meshes.gridLines.visible = !this.options.preview;
+            this.meshes.patchesInterior.visible = !this.options.preview;
+            this.meshes.patchesOutline.visible = !this.options.preview;
+
 
             this.reshape();
 
@@ -1190,8 +1193,12 @@
             // Init mouse info
             this.mouse = {
                 pos: new THREE.Vector3(),
-                ndc: new THREE.Vector3()
+                ndc: new THREE.Vector3(),
+                leftButtonDown: false,
+                rightButtonDown: false
             };
+
+            this.keystate = {};
 
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1217,11 +1224,15 @@
 
             // Add window listeners + dom elements
             this.container.appendChild(this.renderer.domElement);
+            this.container.addEventListener("mouseleave", this.mouseleave.bind(this));
             this.container.addEventListener("mousemove", this.mousemove.bind(this));
             this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
             window.addEventListener("resize", this.reshape.bind(this));
             window.addEventListener("mouseup", this.mouseup.bind(this));
+            
             window.addEventListener("keypress", this.keypress.bind(this));
+            window.addEventListener("keydown", this.keydown.bind(this));
+            window.addEventListener("keyup", this.keyup.bind(this));
 
             this.saveHistory();
 
@@ -1438,6 +1449,14 @@
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.updateProjectionMatrix();
         }
+        
+        keydown(evt) {
+            this.keystate[evt.code] = true;
+        }
+
+        keyup(evt) {
+            delete this.keystate[evt.code];
+        }
 
         keypress(evt) {
             if (evt.ctrlKey) {
@@ -1490,6 +1509,11 @@
 
         }
 
+        mouseleave(evt) {
+            this.mouse.leftButtonDown = false;
+            this.mouse.rightButtonDown = false;
+        }
+
         /**
          * Mouse move handle of the canvas
          * @private
@@ -1524,6 +1548,10 @@
          * @param {MouseEvent} evt 
          */
         mouseup(evt) {
+
+            this.mouse.leftButtonDown = false;
+            this.mouse.rightButtonDown = false;
+
             if (this.selectedHandle) {
 
                 if (this.dragHandleInfo.position.distanceTo(this.selectedHandle) > 0) {
