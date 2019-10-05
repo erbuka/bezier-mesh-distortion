@@ -24,11 +24,19 @@
         }
 
         get(i, j) {
+            if (i < 0 || i > this.rowCount - 1 || j < 0 || j > this.colCount - 1)
+                return null;
             return this.cells[i * this.colCount + j];
         }
 
         set(i, j, v) {
             this.cells[i * this.colCount + j] = v;
+        }
+
+        deleteColumn(j) {
+            for (let i = this.rowCount - 1; i >= 0; i--)
+                this.cells.splice(i * this.colCount + j, 1);
+            this.colCount--;
         }
 
         deleteRow(i) {
@@ -353,8 +361,10 @@
         }
 
         dispose() {
-            this.ownerProjection.container.removeChild(this.domElement);
-            this.domElement = null;
+            if (this.domElement) {
+                this.ownerProjection.container.removeChild(this.domElement);
+                this.domElement = null;
+            }
         }
 
         clone() {
@@ -405,11 +415,6 @@
             this.bezierPatches = new Grid(1, 1);
             this.bezierPatches.set(0, 0, initialBezierPatch);
 
-            cp[0].addChildren(cp[1], cp[4], cp[5]);
-            cp[3].addChildren(cp[2], cp[7], cp[6]);
-            cp[15].addChildren(cp[11], cp[14], cp[10]);
-            cp[12].addChildren(cp[8], cp[13], cp[9]);
-
             this.relinkControlPoints();
 
         }
@@ -424,17 +429,69 @@
             for (let p of this.bezierPatches) {
                 let cp = p.controlPoints;
                 cp.forEach(cp => {
+                    cp.mirror(null, null);
                     cp.children.forEach(c => c.parent = null);
                     cp.children = [];
                 });
             }
 
-            for (let p of this.bezierPatches) {
-                let cp = p.controlPoints;
-                cp[0].addChildren(cp[1], cp[4], cp[5]);
-                cp[3].addChildren(cp[2], cp[7], cp[6]);
-                cp[12].addChildren(cp[8], cp[13], cp[9]);
-                cp[15].addChildren(cp[14], cp[11], cp[10]);
+            for (let i = 0; i < this.bezierPatches.rowCount; i++) {
+                for (let j = 0; j < this.bezierPatches.colCount; j++) {
+                    let cur = this.bezierPatches.get(i, j);
+                    let left = this.bezierPatches.get(i, j - 1);
+                    let right = this.bezierPatches.get(i, j + 1);
+                    let bottom = this.bezierPatches.get(i - 1, j);
+                    let top = this.bezierPatches.get(i + 1, j);
+                    let cp = cur.controlPoints;
+
+                    cp[0].addChildren(cp[1], cp[4], cp[5]);
+                    cp[3].addChildren(cp[2], cp[7], cp[6]);
+                    cp[12].addChildren(cp[8], cp[13], cp[9]);
+                    cp[15].addChildren(cp[14], cp[11], cp[10]);
+
+                    if (left) {
+                        cp[1].mirror(left.controlPoints[2], cp[0]);
+                        cp[13].mirror(left.controlPoints[14], cp[12]);
+                    }
+
+                    if (right) {
+                        cp[2].mirror(right.controlPoints[1], cp[3]);
+                        cp[14].mirror(right.controlPoints[13], cp[15]);
+                    }
+
+                    if (bottom) {
+                        cp[4].mirror(bottom.controlPoints[8], cp[0]);
+                        cp[7].mirror(bottom.controlPoints[11], cp[3]);
+                    }
+
+                    if (top) {
+                        cp[8].mirror(top.controlPoints[4], cp[12]);
+                        cp[11].mirror(top.controlPoints[7], cp[15]);
+                    }
+
+                    if (!left && !bottom) {
+                        cp[1].mirror(cp[4], cp[0]);
+                        cp[4].mirror(cp[1], cp[0]);
+                    }
+
+                    if (!left && !top) {
+                        cp[8].mirror(cp[13], cp[12]);
+                        cp[13].mirror(cp[8], cp[12]);
+                    }
+
+                    if (!right && !top) {
+                        cp[14].mirror(cp[11], cp[15]);
+                        cp[11].mirror(cp[14], cp[15]);
+                    }
+
+                    if (!right && !bottom) {
+                        cp[2].mirror(cp[7], cp[3]);
+                        cp[7].mirror(cp[2], cp[3]);
+                    }
+
+
+
+                }
             }
 
         }
@@ -520,8 +577,8 @@
             let i = 0;
             for (let patchData of savedInstance.patches) {
                 let cps = patchData.controlPoints.map(i => controlPoints[i]);
-                let row = Math.floor(i / savedInstance.rows);
-                let col = i % savedInstance.rows;
+                let row = Math.floor(i / savedInstance.cols);
+                let col = i % savedInstance.cols;
                 this.bezierPatches.set(row, col, new BezierPatch3(
                     this.ownerProjection,
                     new Domain(patchData.domain.u0, patchData.domain.v0, patchData.domain.u1, patchData.domain.v1),
@@ -529,6 +586,9 @@
                 ));
                 ++i;
             }
+
+            console.log(savedInstance);
+            console.log(this.bezierPatches);
 
         }
 
@@ -545,24 +605,121 @@
             this.bezierPatches.forEach(p => p.update());
         }
 
-        relinkControlPoints() {
-            for (let p of this.bezierPatches) {
-                let cp = p.controlPoints;
-                cp.forEach(cp => {
-                    cp.children.forEach(c => c.parent = null);
-                    cp.children = [];
-                });
+        subdivideVertical(u) {
+            let colIndex = this.bezierPatches.columns().findIndex(r => r[0].domain.u0 <= u && r[0].domain.u1 >= u);
+            let col = this.bezierPatches.columns()[colIndex];
+
+            let leftPatches = [];
+            let rightPatches = [];
+
+
+            /* Subdivided curves
+                            cut point
+            d0 --------------------|--------------------- d1
+                                   |
+                                   |
+            c0 --------------------|--------------------- c1
+                                   |
+                                   |
+            b0 --------------------|--------------------- b1
+                                   |
+                                   |
+            a0 --------------------|--------------------- a1
+
+            */
+
+
+            for (let i = 0; i < this.bezierPatches.rowCount; i++) {
+
+                let cur = col[i];
+
+                let localU = (u - cur.domain.u0) / (cur.domain.u1 - cur.domain.u0);
+
+                let a = Util.subdivideCurve(localU, cur.controlPoints[0], cur.controlPoints[1], cur.controlPoints[2], cur.controlPoints[3]);
+                let b = Util.subdivideCurve(localU, cur.controlPoints[4], cur.controlPoints[5], cur.controlPoints[6], cur.controlPoints[7]);
+                let c = Util.subdivideCurve(localU, cur.controlPoints[8], cur.controlPoints[9], cur.controlPoints[10], cur.controlPoints[11]);
+                let d = Util.subdivideCurve(localU, cur.controlPoints[12], cur.controlPoints[13], cur.controlPoints[14], cur.controlPoints[15]);
+
+
+                let ptsLeft = new Array(16).fill(null);
+                let ptsRight = new Array(16).fill(null);
+
+                if (i > 0) {
+                    ptsLeft[0] = leftPatches[i - 1].controlPoints[12];
+                    ptsLeft[1] = leftPatches[i - 1].controlPoints[13];
+                    ptsLeft[2] = leftPatches[i - 1].controlPoints[14];
+                    ptsLeft[3] = leftPatches[i - 1].controlPoints[15];
+
+                    ptsRight[0] = rightPatches[i - 1].controlPoints[12];
+                    ptsRight[1] = rightPatches[i - 1].controlPoints[13];
+                    ptsRight[2] = rightPatches[i - 1].controlPoints[14];
+                    ptsRight[3] = rightPatches[i - 1].controlPoints[15];
+
+                } else {
+                    ptsLeft[0] = cur.controlPoints[0];
+                    ptsLeft[1] = cur.controlPoints[1].copy(a[0][1]);
+                    ptsLeft[2] = ControlPoint.fromVector(this.ownerProjection, a[0][2]);
+
+                    ptsRight[3] = cur.controlPoints[3];
+                    ptsRight[2] = cur.controlPoints[2].copy(a[1][2]);
+                    ptsRight[1] = ControlPoint.fromVector(this.ownerProjection, a[1][1]);
+
+                    ptsLeft[3] = ptsRight[0] = ControlPoint.fromVector(this.ownerProjection, a[1][0]);
+
+                }
+
+                ptsLeft[4] = cur.controlPoints[4];
+                ptsLeft[8] = cur.controlPoints[8];
+                ptsLeft[12] = cur.controlPoints[12];
+                ptsLeft[13] = cur.controlPoints[13].copy(d[0][1]);
+                ptsLeft[14] = ControlPoint.fromVector(this.ownerProjection, d[0][2]);
+
+                ptsLeft[5] = cur.controlPoints[5].copy(b[0][1]);
+                ptsLeft[9] = cur.controlPoints[6].copy(c[0][1]);
+                ptsLeft[6] = ControlPoint.fromVector(this.ownerProjection, b[0][2]);
+                ptsLeft[10] = ControlPoint.fromVector(this.ownerProjection, c[0][2]);
+
+                ptsRight[7] = cur.controlPoints[7];
+                ptsRight[11] = cur.controlPoints[11];
+                ptsRight[15] = cur.controlPoints[15];
+                ptsRight[14] = cur.controlPoints[14].copy(d[1][2]);
+                ptsRight[13] = ControlPoint.fromVector(this.ownerProjection, d[1][1]);
+
+                ptsRight[5] = ControlPoint.fromVector(this.ownerProjection, b[1][1]);
+                ptsRight[9] = ControlPoint.fromVector(this.ownerProjection, c[1][1]);
+                ptsRight[6] = cur.controlPoints[9].copy(b[1][2]);
+                ptsRight[10] = cur.controlPoints[10].copy(c[1][2]);
+
+                ptsLeft[7] = ptsRight[4] = ControlPoint.fromVector(this.ownerProjection, b[1][0]);
+                ptsLeft[11] = ptsRight[8] = ControlPoint.fromVector(this.ownerProjection, c[1][0]);
+                ptsLeft[15] = ptsRight[12] = ControlPoint.fromVector(this.ownerProjection, d[1][0]);
+
+                leftPatches.push(new BezierPatch3(
+                    this.ownerProjection,
+                    new Domain(cur.domain.u0, cur.domain.v0, u, cur.domain.v1),
+                    ptsLeft
+                ));
+
+                rightPatches.push(new BezierPatch3(
+                    this.ownerProjection,
+                    new Domain(u, cur.domain.v0, cur.domain.u1, cur.domain.v1),
+                    ptsRight
+                ));
             }
 
-            for (let p of this.bezierPatches) {
-                let cp = p.controlPoints;
-                cp[0].addChildren(cp[1], cp[4], cp[5]);
-                cp[3].addChildren(cp[2], cp[7], cp[6]);
-                cp[12].addChildren(cp[8], cp[13], cp[9]);
-                cp[15].addChildren(cp[14], cp[11], cp[10]);
+            this.bezierPatches.insertColumn(colIndex + 1);
+            this.bezierPatches.insertColumn(colIndex + 2);
+
+            for (let i = 0; i < this.bezierPatches.rowCount; i++) {
+                this.bezierPatches.set(i, colIndex + 1, leftPatches[i]);
+                this.bezierPatches.set(i, colIndex + 2, rightPatches[i]);
             }
 
+            this.bezierPatches.deleteColumn(colIndex);
+
+            this.relinkControlPoints();
         }
+
 
         subdivideHorizontal(v) {
             let rowIndex = this.bezierPatches.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
@@ -589,14 +746,17 @@
 
             */
 
+
             for (let j = 0; j < this.bezierPatches.colCount; j++) {
 
                 let cur = row[j];
 
-                let a = Util.subdivideCurve(v, cur.controlPoints[0], cur.controlPoints[4], cur.controlPoints[8], cur.controlPoints[12]);
-                let b = Util.subdivideCurve(v, cur.controlPoints[1], cur.controlPoints[5], cur.controlPoints[9], cur.controlPoints[13]);
-                let c = Util.subdivideCurve(v, cur.controlPoints[2], cur.controlPoints[6], cur.controlPoints[10], cur.controlPoints[14]);
-                let d = Util.subdivideCurve(v, cur.controlPoints[3], cur.controlPoints[7], cur.controlPoints[11], cur.controlPoints[15]);
+                let localV = (v - cur.domain.v0) / (cur.domain.v1 - cur.domain.v0);
+
+                let a = Util.subdivideCurve(localV, cur.controlPoints[0], cur.controlPoints[4], cur.controlPoints[8], cur.controlPoints[12]);
+                let b = Util.subdivideCurve(localV, cur.controlPoints[1], cur.controlPoints[5], cur.controlPoints[9], cur.controlPoints[13]);
+                let c = Util.subdivideCurve(localV, cur.controlPoints[2], cur.controlPoints[6], cur.controlPoints[10], cur.controlPoints[14]);
+                let d = Util.subdivideCurve(localV, cur.controlPoints[3], cur.controlPoints[7], cur.controlPoints[11], cur.controlPoints[15]);
 
 
                 let ptsTop = new Array(16).fill(null);
@@ -1027,6 +1187,11 @@
             // Main container
             this.container = document.querySelector(container);
 
+            // Init mouse info
+            this.mouse = {
+                pos: new THREE.Vector3(),
+                ndc: new THREE.Vector3()
+            };
 
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1289,12 +1454,41 @@
             }
 
             if (evt.code === "KeyS") {
-                this.patch.subdivideHorizontal(0.5);
+
+                let uv = this.intersectMesh(this.mouse.ndc);
+
+                if (uv) {
+                    this.patch.subdivideHorizontal(uv.y);
+                    this.saveHistory();
+                }
+
+            }
+
+
+            if (evt.code === "KeyA") {
+
+                let uv = this.intersectMesh(this.mouse.ndc);
+
+                if (uv) {
+                    this.patch.subdivideVertical(uv.x);
+                    this.saveHistory();
+                }
+
             }
 
         }
 
+        intersectMesh(ndc) {
+            this.raycaster.setFromCamera(ndc, this.camera);
+            let intersects = this.raycaster.intersectObject(this.meshes.plane);
+            if (intersects.length === 1) {
+                let u = intersects[0].uv.x;
+                let v = intersects[0].uv.y;
+                return new THREE.Vector2(u, v);
+            }
+            return null;
 
+        }
 
         /**
          * Mouse move handle of the canvas
@@ -1316,29 +1510,12 @@
                 this.selectedHandle.move(mx, my);
             }
 
-            // Raycaster test
-
-            let mouseNdc = new THREE.Vector2(
+            this.mouse.pos.set(mx, my, 0);
+            this.mouse.ndc.set(
                 mx / this.container.clientWidth * 2 - 1,
-                - (my / this.container.clientHeight) * 2 + 1
-            );
-
-            /*
-            this.raycaster.setFromCamera(mouseNdc, this.camera);
-            let intersects = this.raycaster.intersectObject(this.meshes.plane);
-            console.log(intersects);
-            if(intersects.length === 1) {
-                let u = intersects[0].uv.x;
-                let v = intersects[0].uv.y;
-
-                let pu0 = new THREE.Vector3().copy(this.patch.compute(u, 0));
-                let pu1 = new THREE.Vector3().copy(this.patch.compute(u, 1));
-                let pv0 = new THREE.Vector3().copy(this.patch.compute(0, v));
-                let pv1 = new THREE.Vector3().copy(this.patch.compute(1, v));
-
-                console.log(pu0, pu1, pv0, pv1);
-            }
-            */
+                - (my / this.container.clientHeight) * 2 + 1,
+                0
+            )
         }
 
         /**
