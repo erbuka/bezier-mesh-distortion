@@ -402,8 +402,8 @@
             this.dispose();
 
             let initialBezierPatch = new BezierPatch3(this.ownerProjection, new Domain(0, 0, 1, 1), cp);
-            this.bezierPatchesGrid = new Grid(1, 1);
-            this.bezierPatchesGrid.set(0, 0, initialBezierPatch);
+            this.bezierPatches = new Grid(1, 1);
+            this.bezierPatches.set(0, 0, initialBezierPatch);
 
             cp[0].addChildren(cp[1], cp[4], cp[5]);
             cp[3].addChildren(cp[2], cp[7], cp[6]);
@@ -415,9 +415,9 @@
         }
 
         dispose() {
-            if (this.bezierPatchesGrid)
-                this.bezierPatchesGrid.forEach(p => p.dispose());
-            this.bezierPatchesGrid = null;
+            if (this.bezierPatches)
+                this.bezierPatches.forEach(p => p.dispose());
+            this.bezierPatches = null;
         }
 
         relinkControlPoints() {
@@ -453,7 +453,7 @@
 
             // 1 . Set control points reference
             let refCount = 0;
-            this.bezierPatchesGrid.forEach(patch => {
+            this.bezierPatches.forEach(patch => {
                 for (let point of patch.controlPoints) {
                     point["$ref"] = refCount;
                     refCount++;
@@ -463,7 +463,7 @@
             let controlPoints = [];
             let patches = [];
 
-            this.bezierPatchesGrid.forEach(patch => {
+            this.bezierPatches.forEach(patch => {
 
                 let patchData = {
                     controlPoints: [],
@@ -488,8 +488,8 @@
             });
 
             return {
-                rows: this.bezierPatchesGrid.rowCount,
-                cols: this.bezierPatchesGrid.colCount,
+                rows: this.bezierPatches.rowCount,
+                cols: this.bezierPatches.colCount,
                 patches: patches,
                 controlPoints: controlPoints
             }
@@ -500,7 +500,7 @@
 
             this.dispose();
 
-            this.bezierPatchesGrid = new Grid(savedInstance.rows, savedInstance.cols);
+            this.bezierPatches = new Grid(savedInstance.rows, savedInstance.cols);
 
             let controlPoints = savedInstance.controlPoints.map(p => {
                 return new ControlPoint(this.ownerProjection, p.x, p.y, p.z);
@@ -522,7 +522,7 @@
                 let cps = patchData.controlPoints.map(i => controlPoints[i]);
                 let row = Math.floor(i / savedInstance.rows);
                 let col = i % savedInstance.rows;
-                this.bezierPatchesGrid.set(row, col, new BezierPatch3(
+                this.bezierPatches.set(row, col, new BezierPatch3(
                     this.ownerProjection,
                     new Domain(patchData.domain.u0, patchData.domain.v0, patchData.domain.u1, patchData.domain.v1),
                     cps
@@ -533,7 +533,7 @@
         }
 
         compute(u, v, mode) {
-            for (let p of this.bezierPatchesGrid) {
+            for (let p of this.bezierPatches) {
                 if (p.domain.contains(u, v))
                     return p.compute(u, v, mode);
             };
@@ -542,11 +542,11 @@
 
 
         update() {
-            this.bezierPatchesGrid.forEach(p => p.update());
+            this.bezierPatches.forEach(p => p.update());
         }
 
         relinkControlPoints() {
-            for (let p of this.bezierPatchesGrid) {
+            for (let p of this.bezierPatches) {
                 let cp = p.controlPoints;
                 cp.forEach(cp => {
                     cp.children.forEach(c => c.parent = null);
@@ -554,7 +554,7 @@
                 });
             }
 
-            for (let p of this.bezierPatchesGrid) {
+            for (let p of this.bezierPatches) {
                 let cp = p.controlPoints;
                 cp[0].addChildren(cp[1], cp[4], cp[5]);
                 cp[3].addChildren(cp[2], cp[7], cp[6]);
@@ -565,8 +565,8 @@
         }
 
         subdivideHorizontal(v) {
-            let rowIndex = this.bezierPatchesGrid.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
-            let row = this.bezierPatchesGrid.rows()[rowIndex];
+            let rowIndex = this.bezierPatches.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
+            let row = this.bezierPatches.rows()[rowIndex];
 
             let topPatches = [];
             let bottomPatches = [];
@@ -589,7 +589,7 @@
 
             */
 
-            for (let j = 0; j < this.bezierPatchesGrid.colCount; j++) {
+            for (let j = 0; j < this.bezierPatches.colCount; j++) {
 
                 let cur = row[j];
 
@@ -665,17 +665,17 @@
                 ));
             }
 
-            this.bezierPatchesGrid.inserRow(rowIndex + 1);
-            this.bezierPatchesGrid.inserRow(rowIndex + 2);
+            this.bezierPatches.inserRow(rowIndex + 1);
+            this.bezierPatches.inserRow(rowIndex + 2);
 
-            for (let j = 0; j < this.bezierPatchesGrid.colCount; j++) {
-                this.bezierPatchesGrid.set(rowIndex + 1, j, bottomPatches[j]);
-                this.bezierPatchesGrid.set(rowIndex + 2, j, topPatches[j]);
+            for (let j = 0; j < this.bezierPatches.colCount; j++) {
+                this.bezierPatches.set(rowIndex + 1, j, bottomPatches[j]);
+                this.bezierPatches.set(rowIndex + 2, j, topPatches[j]);
             }
 
-            this.bezierPatchesGrid.deleteRow(rowIndex);
+            this.bezierPatches.deleteRow(rowIndex);
 
-            this.relinkHandles();
+            this.relinkControlPoints();
 
 
         }
@@ -1114,7 +1114,7 @@
                 let linesPositions = linesGeometry.attributes.position;
                 let count = 0;
 
-                this.patch.bezierPatchesGrid.forEach(patch => {
+                this.patch.bezierPatches.forEach(patch => {
                     for (let cp of patch.controlPoints) {
                         for (let child of cp.children) {
 
