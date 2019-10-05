@@ -650,6 +650,12 @@
         }
 
         coons(u, v) {
+
+            let f1 = (x) => 1 - 3 * x * x + 2 * x * x * x;
+            let f2 = (x) => 3 * x * x - 2 * x * x * x;
+
+            let f1v = f1(v), f1u = f1(u), f2v = f2(v), f2u = f2(u);
+
             let cp = this.controlPoints;
 
             let ruledU = new THREE.Vector3();
@@ -661,16 +667,19 @@
             let v0 = new BezierCurve3(cp[0], cp[1], cp[2], cp[3]);
             let v1 = new BezierCurve3(cp[12], cp[13], cp[14], cp[15]);
 
-            ruledU.copy(u0.compute(v)).lerp(u1.compute(v), u);
-            ruledV.copy(v0.compute(u)).lerp(v1.compute(u), v);
+            //ruledU.copy(u0.compute(v)).lerp(u1.compute(v), u);
+            //ruledV.copy(v0.compute(u)).lerp(v1.compute(u), v);
+
+            ruledU.copy(u0.compute(v).multiplyScalar(f1u)).add(u1.compute(v).multiplyScalar(f2u));
+            ruledV.copy(v0.compute(u).multiplyScalar(f1v)).add(v1.compute(u).multiplyScalar(f2v));
 
             let vec = buffers.vec3[0];
 
             bilinearUV
-                .add(vec.copy(cp[0]).multiplyScalar((1 - u) * (1 - v)))
-                .add(vec.copy(cp[3]).multiplyScalar(u * (1 - v)))
-                .add(vec.copy(cp[12]).multiplyScalar(v * (1 - u)))
-                .add(vec.copy(cp[15]).multiplyScalar(u * v));
+                .add(vec.copy(cp[0]).multiplyScalar(f1(v) * f1(u)))
+                .add(vec.copy(cp[3]).multiplyScalar(f1(v) * f2(u)))
+                .add(vec.copy(cp[12]).multiplyScalar(f2(v) * f1(u)))
+                .add(vec.copy(cp[15]).multiplyScalar(f2(v) * f2(u)));
 
             return ruledV.add(ruledU).sub(bilinearUV);
 
@@ -702,7 +711,7 @@
                 }
                 return pRes;
                 */
-               return this.coons(u, v);
+                return this.coons(u, v);
 
             } else {
                 throw new Error("Invalid patch compute mode: " + mode);
