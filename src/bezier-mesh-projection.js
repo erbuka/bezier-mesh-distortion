@@ -410,22 +410,7 @@
             cp[15].addChildren(cp[11], cp[14], cp[10]);
             cp[12].addChildren(cp[8], cp[13], cp[9]);
 
-            cp[0].addChildren(cp[1], cp[4], cp[5]);
-            cp[3].addChildren(cp[2], cp[7], cp[6]);
-            cp[15].addChildren(cp[11], cp[14], cp[10]);
-            cp[12].addChildren(cp[8], cp[13], cp[9]);
-
-            cp[1].mirror(cp[4], cp[0]);
-            cp[4].mirror(cp[1], cp[0]);
-
-            cp[2].mirror(cp[7], cp[3]);
-            cp[7].mirror(cp[2], cp[3]);
-
-            cp[11].mirror(cp[14], cp[15]);
-            cp[14].mirror(cp[11], cp[15]);
-
-            cp[8].mirror(cp[13], cp[12]);
-            cp[13].mirror(cp[8], cp[12]);
+            this.relinkControlPoints();
 
         }
 
@@ -433,6 +418,25 @@
             if (this.bezierPatchesGrid)
                 this.bezierPatchesGrid.forEach(p => p.dispose());
             this.bezierPatchesGrid = null;
+        }
+
+        relinkControlPoints() {
+            for (let p of this.bezierPatches) {
+                let cp = p.controlPoints;
+                cp.forEach(cp => {
+                    cp.children.forEach(c => c.parent = null);
+                    cp.children = [];
+                });
+            }
+
+            for (let p of this.bezierPatches) {
+                let cp = p.controlPoints;
+                cp[0].addChildren(cp[1], cp[4], cp[5]);
+                cp[3].addChildren(cp[2], cp[7], cp[6]);
+                cp[12].addChildren(cp[8], cp[13], cp[9]);
+                cp[15].addChildren(cp[14], cp[11], cp[10]);
+            }
+
         }
 
         save() {
