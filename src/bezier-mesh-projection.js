@@ -1194,11 +1194,19 @@
             this.mouse = {
                 pos: new THREE.Vector3(),
                 ndc: new THREE.Vector3(),
+                prev: {
+                    pos: new THREE.Vector3(),
+                    ndc: new THREE.Vector3()
+                },
                 leftButtonDown: false,
                 rightButtonDown: false
             };
 
+            // Key state info
             this.keystate = {};
+
+            this.cameraOrigin = new THREE.Vector3();
+
 
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1222,14 +1230,14 @@
                 window["patch"] = this.patch;
             }
 
-            // Add window listeners + dom elements
             this.container.appendChild(this.renderer.domElement);
             this.container.addEventListener("mouseleave", this.mouseleave.bind(this));
             this.container.addEventListener("mousemove", this.mousemove.bind(this));
+            this.container.addEventListener("mousedown", this.mousedown.bind(this));
+            this.container.addEventListener("mouseup", this.mouseup.bind(this));
             this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
+
             window.addEventListener("resize", this.reshape.bind(this));
-            window.addEventListener("mouseup", this.mouseup.bind(this));
-            
             window.addEventListener("keypress", this.keypress.bind(this));
             window.addEventListener("keydown", this.keydown.bind(this));
             window.addEventListener("keyup", this.keyup.bind(this));
@@ -1244,9 +1252,7 @@
         }
 
         saveHistory() {
-            this.history.insert({
-                patchData: this.patch.save()
-            });
+            this.history.insert({ patchData: this.patch.save() });
         }
 
 
@@ -1432,10 +1438,10 @@
         updateProjectionMatrix() {
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let z = 1 / this.options.zoom;
-            this.camera.left = -w / h * z;
-            this.camera.right = w / h * z;
-            this.camera.bottom = -z;
-            this.camera.top = z;
+            this.camera.left = -w / h * z + this.cameraOrigin.x;
+            this.camera.right = w / h * z + this.cameraOrigin.x;
+            this.camera.bottom = -z + this.cameraOrigin.y;
+            this.camera.top = z + this.cameraOrigin.y;
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();
@@ -1449,7 +1455,7 @@
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.updateProjectionMatrix();
         }
-        
+
         keydown(evt) {
             this.keystate[evt.code] = true;
         }
@@ -1514,6 +1520,11 @@
             this.mouse.rightButtonDown = false;
         }
 
+        mousedown(evt) {
+            this.mouse.leftButtonDown = evt.button === 0;
+            this.mouse.rightButtonDown = evt.button === 2;
+        }
+
         /**
          * Mouse move handle of the canvas
          * @private
@@ -1525,14 +1536,13 @@
 
             if (t !== this.renderer.domElement) {
                 // it's an handle
-                let rect = t.getBoundingClientRect();
                 mx += t.offsetLeft
                 my += t.offsetTop;
             }
 
-            if (this.selectedHandle) {
-                this.selectedHandle.move(mx, my);
-            }
+
+            this.mouse.prev.ndc.copy(this.mouse.ndc);
+            this.mouse.prev.pos.copy(this.mouse.pos);
 
             this.mouse.pos.set(mx, my, 0);
             this.mouse.ndc.set(
@@ -1540,6 +1550,13 @@
                 - (my / this.container.clientHeight) * 2 + 1,
                 0
             )
+
+            
+            if (this.selectedHandle) {
+                this.selectedHandle.move(mx, my);
+            }
+
+
         }
 
         /**
