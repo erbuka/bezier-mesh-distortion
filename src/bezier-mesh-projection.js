@@ -587,9 +587,6 @@
                 ++i;
             }
 
-            console.log(savedInstance);
-            console.log(this.bezierPatches);
-
         }
 
         compute(u, v, mode) {
@@ -614,7 +611,7 @@
 
 
             /* Subdivided curves
-                            cut point
+                                cut point
             d0 --------------------|--------------------- d1
                                    |
                                    |
@@ -1127,54 +1124,9 @@
 
             }
 
-            // Create handle lines mesh
-            {
-                const vertexCount = 2 * 10000;
-
-                let handleLinesGeom = new THREE.BufferGeometry();
-
-                handleLinesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
-
-                this.meshes.handleLines = new THREE.LineSegments(handleLinesGeom, new THREE.LineBasicMaterial({ color: this.options.handleColor }));
-                this.scene.add(this.meshes.handleLines);
-
-            }
 
 
-            // create patches outline mesh
-            {
-                const vertexCount = 2 * 10000;
-
-                let patchesOutlineGeom = new THREE.BufferGeometry();
-
-                patchesOutlineGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
-
-                this.meshes.patchesOutline = new THREE.LineSegments(patchesOutlineGeom, new THREE.LineBasicMaterial({
-                    color: this.options.handleColor,
-                }));
-                this.scene.add(this.meshes.patchesOutline);
-            }
-
-            // create patches interior lines 
-            {
-                const vertexCount = 2 * 10000;
-
-                let patchesInteriorGeom = new THREE.BufferGeometry();
-
-                patchesInteriorGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
-
-                this.meshes.patchesInterior = new THREE.LineSegments(patchesInteriorGeom, new THREE.LineBasicMaterial({
-                    color: this.options.handleColor,
-                    transparent: true,
-                    opacity: 0.35
-                }));
-                this.scene.add(this.meshes.patchesInterior);
-            }
-
-            this.meshes.handleLines.visible = false;
             this.meshes.gridLines.visible = !this.options.preview;
-            this.meshes.patchesInterior.visible = !this.options.preview;
-            this.meshes.patchesOutline.visible = !this.options.preview;
 
 
             this.reshape();
@@ -1230,7 +1182,25 @@
                 window["patch"] = this.patch;
             }
 
+
+
+            // 3D renderer
             this.container.appendChild(this.renderer.domElement);
+
+
+            // UI Canvas
+            {
+                let uiCanvas = document.createElement("canvas");
+                uiCanvas.style.position = "absolute";
+                uiCanvas.style.left = "0px";
+                uiCanvas.style.top = "0px";
+
+                this.uiCanvas = uiCanvas;
+
+            }
+            this.container.appendChild(this.uiCanvas);
+
+            // Event handlers
             this.container.addEventListener("mouseleave", this.mouseleave.bind(this));
             this.container.addEventListener("mousemove", this.mousemove.bind(this));
             this.container.addEventListener("mousedown", this.mousedown.bind(this));
@@ -1242,6 +1212,7 @@
             window.addEventListener("keydown", this.keydown.bind(this));
             window.addEventListener("keyup", this.keyup.bind(this));
 
+            // Create a first entry in history
             this.saveHistory();
 
         }
@@ -1255,6 +1226,76 @@
             this.history.insert({ patchData: this.patch.save() });
         }
 
+        drawUI() {
+            let ctx = this.uiCanvas.getContext("2d");
+            let [w, h] = [this.uiCanvas.width, this.uiCanvas.height];
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.save();
+
+            ctx.strokeStyle = this.options.handleColor;
+            ctx.lineWidth = 2;
+
+            // Draw patches outline
+            for (let patch of this.patch.bezierPatches) {
+                let cps = patch.controlPoints;
+                let vertices = [
+                    cps[0], cps[1], cps[2], cps[3],
+                    cps[7], cps[11], cps[15], cps[14],
+                    cps[13], cps[12], cps[8], cps[4]
+                ]
+
+                ctx.beginPath();
+                for (let i = 0; i < vertices.length; i++) {
+                    let p = this.worldToScreen(vertices[i]);
+                    i == 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+                }
+                ctx.closePath();
+                ctx.stroke();
+
+            }
+
+            let u0 = new THREE.Vector2();
+            let u1 = new THREE.Vector2();
+            let v0 = new THREE.Vector2();
+            let v1 = new THREE.Vector2();
+
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.5;
+
+
+            // Draw patches interior
+            for (let patch of this.patch.bezierPatches) {
+
+                let cps = patch.controlPoints;
+
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 1; j < 3; j++) {
+                        // Horizontal
+                        u0.copy(this.worldToScreen(cps[j * 4 + i]));
+                        u1.copy(this.worldToScreen(cps[j * 4 + i + 1]));
+
+                        ctx.beginPath();
+                        ctx.moveTo(u0.x, u0.y)
+                        ctx.lineTo(u1.x, u1.y);
+                        ctx.stroke();
+
+                        // Vertical
+                        v0.copy(this.worldToScreen(cps[i * 4 + j]));
+                        v1.copy(this.worldToScreen(cps[(i + 1) * 4 + j]));
+
+                        ctx.beginPath();
+                        ctx.moveTo(v0.x, v0.y)
+                        ctx.lineTo(v1.x, v1.y);
+                        ctx.stroke();
+
+                    }
+                }
+
+            }
+
+            ctx.restore();
+        }
 
 
         /**
@@ -1267,6 +1308,7 @@
             this.updateProjectionMatrix();
             this.updatePatch();
             this.updateMeshes();
+            this.drawUI();
 
             this.renderer.clearColor();
 
@@ -1319,117 +1361,6 @@
             }
 
 
-            // Update handle lines 
-            {
-
-                let linesGeometry = this.meshes.handleLines.geometry;
-                let linesPositions = linesGeometry.attributes.position;
-                let count = 0;
-
-                this.patch.bezierPatches.forEach(patch => {
-                    for (let cp of patch.controlPoints) {
-                        for (let child of cp.children) {
-
-                            linesPositions.array[count * 3 + 0] = cp.x;
-                            linesPositions.array[count * 3 + 1] = cp.y;
-                            linesPositions.array[count * 3 + 2] = 0.02;
-
-                            linesPositions.array[count * 3 + 3] = child.x;
-                            linesPositions.array[count * 3 + 4] = child.y;
-                            linesPositions.array[count * 3 + 5] = 0.02;
-
-                            count += 2;
-                        }
-                    }
-                });
-
-                linesPositions.needsUpdate = true;
-
-                linesGeometry.setDrawRange(0, count);
-
-            }
-
-            // Update patches outline
-            {
-                let patchesOutlintGeometry = this.meshes.patchesOutline.geometry;
-                let patchesOutlinePosition = patchesOutlintGeometry.attributes.position;
-                let count = 0;
-
-                for (let patch of this.patch.bezierPatches) {
-                    let cps = patch.controlPoints;
-                    let vertices = [
-                        cps[0], cps[1], cps[2], cps[3],
-                        cps[7], cps[11], cps[15], cps[14],
-                        cps[13], cps[12], cps[8], cps[4]
-                    ]
-                    for (let i = 0; i < vertices.length; i++) {
-
-                        patchesOutlinePosition.array[count * 3 + 0] = vertices[i].x;
-                        patchesOutlinePosition.array[count * 3 + 1] = vertices[i].y;
-                        patchesOutlinePosition.array[count * 3 + 2] = 0.03;
-
-                        patchesOutlinePosition.array[(count + 1) * 3 + 0] = vertices[(i + 1) % vertices.length].x;
-                        patchesOutlinePosition.array[(count + 1) * 3 + 1] = vertices[(i + 1) % vertices.length].y;
-                        patchesOutlinePosition.array[(count + 1) * 3 + 2] = 1;
-
-                        count += 2;
-
-                    }
-                }
-
-                patchesOutlinePosition.needsUpdate = true;
-                patchesOutlintGeometry.setDrawRange(0, count)
-
-            }
-
-            // Update patches interior
-            {
-                let patchesInteriorGeometry = this.meshes.patchesInterior.geometry;
-                let patchesInteriorPosition = patchesInteriorGeometry.attributes.position;
-                let count = 0;
-                for (let patch of this.patch.bezierPatches) {
-
-                    let cps = patch.controlPoints;
-
-                    for (let i = 0; i < 3; i++) {
-                        for (let j = 1; j < 3; j++) {
-
-                            // Horizontal
-                            let u0 = cps[j * 4 + i];
-                            let u1 = cps[j * 4 + i + 1];
-
-                            patchesInteriorPosition.array[count * 3 + 0] = u0.x;
-                            patchesInteriorPosition.array[count * 3 + 1] = u0.y;
-                            patchesInteriorPosition.array[count * 3 + 2] = 0.03;
-
-                            patchesInteriorPosition.array[count * 3 + 3] = u1.x;
-                            patchesInteriorPosition.array[count * 3 + 4] = u1.y;
-                            patchesInteriorPosition.array[count * 3 + 5] = 0.03;
-
-                            // Vertical
-                            let v0 = cps[i * 4 + j];
-                            let v1 = cps[(i + 1) * 4 + j];
-
-                            patchesInteriorPosition.array[count * 3 + 6] = v0.x;
-                            patchesInteriorPosition.array[count * 3 + 7] = v0.y;
-                            patchesInteriorPosition.array[count * 3 + 8] = 0.03;
-
-                            patchesInteriorPosition.array[count * 3 + 9] = v1.x;
-                            patchesInteriorPosition.array[count * 3 + 10] = v1.y;
-                            patchesInteriorPosition.array[count * 3 + 11] = 0.03;
-
-
-                            count += 4;
-
-                        }
-                    }
-
-                }
-
-                patchesInteriorPosition.needsUpdate = true;
-                patchesInteriorGeometry.setDrawRange(0, count);
-            }
-
         }
         /**
          * Updates the projection matrix
@@ -1453,6 +1384,8 @@
          */
         reshape() {
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
+            this.uiCanvas.width = this.container.clientWidth;
+            this.uiCanvas.height = this.container.clientHeight;
             this.updateProjectionMatrix();
         }
 
@@ -1551,7 +1484,7 @@
                 0
             )
 
-            
+
             if (this.selectedHandle) {
                 this.selectedHandle.move(mx, my);
             }
