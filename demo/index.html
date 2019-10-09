@@ -62,12 +62,14 @@
             optionsFolder.addColor(options, "secondaryColor").onChange(changeHandler).listen();
 
             toolsFolder.add(projection, "previewMode").onChange(changeHandler).listen();
-            toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut"]).listen();
+            toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut", "Pan"]).listen();
             for (let f in functions)
                 toolsFolder.add(functions, f);
 
             optionsFolder.open();
-            toolsFolder.open()
+            toolsFolder.open();
+
+            let previousTool = null;
 
             window.addEventListener("mousewheel", (evt) => {
                 let s = Math.sign(evt.deltaY);
@@ -76,11 +78,19 @@
             });
 
             window.addEventListener("keydown", (evt) => {
-
+                if(evt.code === "Space" && projection.selectedTool !== "Pan") {
+                    previousTool = projection.selectedTool;
+                    projection.selectedTool = "Pan";
+                    console.log("down");
+                }
             });
 
             window.addEventListener("keyup", (evt) => {
-
+                if(evt.code === "Space") {
+                    projection.selectedTool = previousTool;
+                    console.log(previousTool);
+                    console.log("up");
+                }
             });
 
             window.addEventListener("keypress", (evt) => {

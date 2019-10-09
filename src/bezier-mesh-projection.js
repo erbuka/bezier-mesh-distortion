@@ -18,7 +18,8 @@
     const Tools = {
         Arrow: "Arrow",
         HorizontalCut: "Horizontal Cut",
-        VerticalCut: "Vertical Cut"
+        VerticalCut: "Vertical Cut",
+        Pan: "Pan"
     }
 
     class Grid {
@@ -1113,7 +1114,7 @@
 
 
 
-            this.meshes.gridLines.visible = !this.options.previewMode;
+            this.meshes.gridLines.visible = !this.previewMode;
 
 
             this.reshape();
@@ -1589,7 +1590,6 @@
 
         mousedown(evt) {
 
-
             this.mouse.leftButtonDown = evt.button === 0;
             this.mouse.rightButtonDown = evt.button === 2;
             this.updateMousePosition(evt);
@@ -1615,6 +1615,10 @@
 
             this.dragInfo = {
                 position: new THREE.Vector3().copy(this.mouse.position),
+                world: new THREE.Vector3().copy(this.screenToWorld(
+                    this.mouse.position.x,
+                    this.mouse.position.y
+                )),
                 patchData: this.patch.save(),
                 controlPoint: !!evt.bmControlPoint
             }
@@ -1647,6 +1651,12 @@
                         }
                     }
                 }
+            }
+
+            if(this.selectedTool === Tools.Pan && this.mouse.leftButtonDown) {
+                let offset = buffers.vec3[0].copy(this.dragInfo.world).sub(this.mouse.world);
+                this.cameraOrigin.add(offset);
+                this.updateProjectionMatrix();
             }
 
         }
