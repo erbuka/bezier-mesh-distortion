@@ -12,7 +12,7 @@
 
 <body>
 
-    <div class="bm-canvas" id="demo">    
+    <div class="bm-canvas" id="demo">
     </div>
 
     <script>
@@ -23,28 +23,100 @@
             let options = {
                 container: "#demo",
                 aspectRatio: 1,
-                zoom: 1,
                 gridSize: 20,
+                zoom: 1,
+
+                gridColor: "#666666",
+
+                primaryColor: "#0088ff",
+                secondaryColor: "#ffcc00",
+
                 mode: "bezier",
-                texture: "grid.jpg",
+                
+                texture: "coca-cola.jpg",
                 background: "bottle.jpg",
-                gridColor: "#999999",
-                handleColor: "#0088ff",
-                preview: false
             };
 
-            let bezierDistortion = new bm.BezierMeshProjection(options);
-            let gui = new dat.GUI();
-            let changeHandler = () => bezierDistortion.reset(options);
+            let functions = {
+                alignLeft: () => projection.alignSelectedPoints("left"),
+                alignRight: () => projection.alignSelectedPoints("right"),
+                alignTop: () => projection.alignSelectedPoints("top"),
+                alignBottom: () => projection.alignSelectedPoints("bottom"),
+            }
 
-            gui.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
-            gui.add(options, "texture", ["grid.jpg", "jd.png", "starbucks.png", "coca-cola.jpg"]).onChange(changeHandler).listen();
-            gui.add(options, "background", ["bottle.jpg", "mug.jpg"]).onChange(changeHandler).listen();
-            gui.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
-            gui.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
-            gui.addColor(options, "gridColor").onChange(changeHandler).listen();
-            gui.addColor(options, "handleColor").onChange(changeHandler).listen();
-            gui.add(options, "preview").onChange(changeHandler).listen();
+            let projection = new bm.BezierMeshProjection(options);
+            let gui = new dat.GUI();
+            let changeHandler = () => projection.reset(options);
+
+            let optionsFolder = gui.addFolder("Options");
+
+            let toolsFolder = gui.addFolder("Tools");
+
+            optionsFolder.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
+            optionsFolder.add(options, "texture", ["grid.jpg", "jd.png", "starbucks.png", "coca-cola.jpg"]).onChange(changeHandler).listen();
+            optionsFolder.add(options, "background", ["bottle.jpg", "mug.jpg"]).onChange(changeHandler).listen();
+            optionsFolder.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
+            optionsFolder.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
+            optionsFolder.addColor(options, "gridColor").onChange(changeHandler).listen();
+            optionsFolder.addColor(options, "primaryColor").onChange(changeHandler).listen();
+            optionsFolder.addColor(options, "secondaryColor").onChange(changeHandler).listen();
+
+            toolsFolder.add(projection, "previewMode").onChange(changeHandler).listen();
+            toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut"]).listen();
+            for (let f in functions)
+                toolsFolder.add(functions, f);
+
+            optionsFolder.open();
+            toolsFolder.open()
+
+            window.addEventListener("mousewheel", (evt) => {
+                let s = Math.sign(evt.deltaY);
+                options.zoom *= (1 - s * 0.05);
+                changeHandler();
+            });
+
+            window.addEventListener("keydown", (evt) => {
+
+            });
+
+            window.addEventListener("keyup", (evt) => {
+
+            });
+
+            window.addEventListener("keypress", (evt) => {
+                if (evt.ctrlKey) {
+                    switch (evt.code) {
+                        case "KeyZ":
+                            projection.undo();
+                            break;
+                        case "KeyY":
+                            projection.redo();
+                            break;
+                    }
+                } else {
+                    switch (evt.code) {
+                        case "KeyV":
+                            projection.selectedTool = "Arrow";
+                            break;
+                        case "KeyS":
+                            projection.selectedTool = "Horizontal Cut";
+                            break;
+                        case "KeyA":
+                            projection.selectedTool = "Vertical Cut";
+                            break;
+                        case "KeyQ":
+                            projection.alignSelectedPoints(true);
+                            break;
+                        case "KeyW":
+                            projection.alignSelectedPoints(false);
+                            break;
+                    }
+                }
+
+                evt.preventDefault();
+                evt.stopPropagation();
+            });
+
         });
 
     </script>

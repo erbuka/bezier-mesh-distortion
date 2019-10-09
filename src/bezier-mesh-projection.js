@@ -8,6 +8,17 @@
         buffers.vec3 = [];
         for (let i = 0; i < 16; i++)
             buffers.vec3.push(new THREE.Vector3());
+
+        buffers.vec2 = [];
+        for (let i = 0; i < 16; i++)
+            buffers.vec2.push(new THREE.Vector2());
+
+    }
+
+    const Tools = {
+        Arrow: "Arrow",
+        HorizontalCut: "Horizontal Cut",
+        VerticalCut: "Vertical Cut"
     }
 
     class Grid {
@@ -327,15 +338,26 @@
             }
         }
 
+        /*
         move(x, y) {
+            
             let offset = this.ownerProjection.screenToWorld(x, y).sub(this);
 
             this.add(offset);
 
-            this.children.forEach(c => c.add(offset));
+            //this.children.forEach(c => c.add(offset));
 
             if (this.mirrorPoint && this.mirrorMode) {
                 let offset = buffers.vec3[0].copy(this.mirrorPoint.reference).sub(this);
+                this.mirrorPoint.other.copy(this.mirrorPoint.reference).add(offset);
+            }
+        }*/
+
+        moveBy(offset, mirror) {
+            this.add(offset);
+
+            if (mirror && this.mirrorPoint) {
+                offset = buffers.vec3[0].copy(this.mirrorPoint.reference).sub(this);
                 this.mirrorPoint.other.copy(this.mirrorPoint.reference).add(offset);
             }
 
@@ -343,20 +365,20 @@
 
         update() {
             let screenPos = this.ownerProjection.worldToScreen(this);
-            let rect = this.domElement.getBoundingClientRect();
-            this.domElement.style.left = (screenPos.x - rect.width / 2) + "px";
-            this.domElement.style.top = (screenPos.y - rect.height / 2) + "px";
-            this.domElement.style.backgroundColor = this.ownerProjection.options.handleColor;
-            this.domElement.style.display = this.ownerProjection.options.preview ? "none" : null;
+
+            let color = this.ownerProjection.selectedControlPoints.includes(this) ?
+                this.ownerProjection.options.secondaryColor : this.ownerProjection.options.primaryColor;
+
+            this.domElement.style.left = (screenPos.x - this.ownerProjection.computedControlPointWidth / 2) + "px";
+            this.domElement.style.top = (screenPos.y - this.ownerProjection.computedControlPointHeight / 2) + "px";
+            this.domElement.style.backgroundColor = color;
+            this.domElement.style.display = this.ownerProjection.previewMode ? "none" : null;
         }
 
         create() {
             this.domElement.classList.add("bm-handle");
-            this.domElement.addEventListener("mousedown", (evt) => {
-                this.ownerProjection.setSelectedHandle(this);
-                this.mirrorMode = evt.button === 2;
-                evt.preventDefault();
-            })
+            this.domElement.addEventListener("mousedown", (evt) => { evt.bmControlPoint = this; })
+            this.domElement.addEventListener("mouseup", (evt) => { evt.bmControlPoint = this; })
             this.ownerProjection.container.appendChild(this.domElement);
         }
 
@@ -846,43 +868,6 @@
             this.domain = domain;
         }
 
-        coons(u, v) {
-
-            let f1 = (x) => 1 - 3 * x * x + 2 * x * x * x;
-            let f2 = (x) => 3 * x * x - 2 * x * x * x;
-
-            let f1v = f1(v), f1u = f1(u), f2v = f2(v), f2u = f2(u);
-
-            let cp = this.controlPoints;
-
-            let ruledU = new THREE.Vector3();
-            let ruledV = new THREE.Vector3();
-            let bilinearUV = new THREE.Vector3();
-
-            let u0 = new BezierCurve3(cp[0], cp[4], cp[8], cp[12]);
-            let u1 = new BezierCurve3(cp[3], cp[7], cp[11], cp[15]);
-            let v0 = new BezierCurve3(cp[0], cp[1], cp[2], cp[3]);
-            let v1 = new BezierCurve3(cp[12], cp[13], cp[14], cp[15]);
-
-            //ruledU.copy(u0.compute(v)).lerp(u1.compute(v), u);
-            //ruledV.copy(v0.compute(u)).lerp(v1.compute(u), v);
-
-            ruledU.copy(u0.compute(v).multiplyScalar(f1u)).add(u1.compute(v).multiplyScalar(f2u));
-            ruledV.copy(v0.compute(u).multiplyScalar(f1v)).add(v1.compute(u).multiplyScalar(f2v));
-
-            let vec = buffers.vec3[0];
-
-            bilinearUV
-                .add(vec.copy(cp[0]).multiplyScalar(f1(v) * f1(u)))
-                .add(vec.copy(cp[3]).multiplyScalar(f1(v) * f2(u)))
-                .add(vec.copy(cp[12]).multiplyScalar(f2(v) * f1(u)))
-                .add(vec.copy(cp[15]).multiplyScalar(f2(v) * f2(u)));
-
-            return ruledV.add(ruledU).sub(bilinearUV);
-
-
-        }
-
         compute(u, v, mode) {
 
             u = (u - this.domain.u0) / (this.domain.u1 - this.domain.u0);
@@ -945,7 +930,6 @@
      * @param {"bezier"|"linear"} [options.mode] Interpolation mode
      * @param {string} [options.texture] The url of the texture to be used
      * @param {string} [options.background] The image to be placed in the background
-     * @param {boolean} [options.preview] If true, hides the grid and the control points
      */
     class BezierMeshProjection {
         constructor(options) {
@@ -955,18 +939,23 @@
                 aspectRatio: 1,
                 gridSize: 20,
                 zoom: 1,
+
                 gridColor: "#666666",
-                handleColor: "#0088ff",
+
+                primaryColor: "#0088ff",
+                secondaryColor: "#ffcc00",
+
                 mode: "bezier",
                 texture: null,
                 background: null,
-                preview: false
             }
+
 
             this.initialize(options.container, options.aspectRatio);
             this.reset(options);
             this.loop();
         }
+
 
         /**
          * Saves the current configuration so it can be restored later
@@ -993,7 +982,6 @@
          * @param {"bezier"|"linear"} [options.mode] Interpolation mode
          * @param {string} [options.texture] The url of the texture to be used
          * @param {string} [options.background] The image to be placed in the background
-         * @param {boolean} [options.preview] If true, hides the grid and the control points
          */
         reset(options) {
 
@@ -1003,7 +991,6 @@
             const gs1 = gs + 1;
             const n = gs1 * gs1;
             this.meshes = {};
-
 
             // Initialize three.js scene
 
@@ -1126,7 +1113,7 @@
 
 
 
-            this.meshes.gridLines.visible = !this.options.preview;
+            this.meshes.gridLines.visible = !this.options.previewMode;
 
 
             this.reshape();
@@ -1142,13 +1129,21 @@
             // Main container
             this.container = document.querySelector(container);
 
+            // Preview mode
+            this.previewMode = false;
+
+            // Selected tool
+            this.selectedTool = Tools.Arrow;
+
             // Init mouse info
             this.mouse = {
-                pos: new THREE.Vector3(),
+                position: new THREE.Vector3(),
                 ndc: new THREE.Vector3(),
+                world: new THREE.Vector3(),
                 prev: {
-                    pos: new THREE.Vector3(),
-                    ndc: new THREE.Vector3()
+                    position: new THREE.Vector3(),
+                    ndc: new THREE.Vector3(),
+                    world: new THREE.Vector3()
                 },
                 leftButtonDown: false,
                 rightButtonDown: false
@@ -1179,10 +1174,10 @@
                 this.patch = new Patch(this);
                 this.patch.initFromCorners(tl, tr, bl, br);
 
-                window["patch"] = this.patch;
             }
 
-
+            // Selected control points
+            this.selectedControlPoints = [];
 
             // 3D renderer
             this.container.appendChild(this.renderer.domElement);
@@ -1205,10 +1200,10 @@
             this.container.addEventListener("mousemove", this.mousemove.bind(this));
             this.container.addEventListener("mousedown", this.mousedown.bind(this));
             this.container.addEventListener("mouseup", this.mouseup.bind(this));
+            this.container.addEventListener("click", this.click.bind(this));
             this.container.addEventListener("contextmenu", (evt) => evt.preventDefault());
 
             window.addEventListener("resize", this.reshape.bind(this));
-            window.addEventListener("keypress", this.keypress.bind(this));
             window.addEventListener("keydown", this.keydown.bind(this));
             window.addEventListener("keyup", this.keyup.bind(this));
 
@@ -1226,75 +1221,191 @@
             this.history.insert({ patchData: this.patch.save() });
         }
 
-        drawUI() {
+        updateUI() {
+
+            // Do not draw UI in previewMode
+            if (this.previewMode)
+                return;
+
+            // Compute control point size for optimization
+            {
+                let cpElement = document.querySelector(".bm-handle");
+                this.computedControlPointWidth = cpElement ? cpElement.clientWidth : 0;
+                this.computedControlPointHeight = cpElement ? cpElement.clientHeight : 0;
+            }
+
             let ctx = this.uiCanvas.getContext("2d");
             let [w, h] = [this.uiCanvas.width, this.uiCanvas.height];
             ctx.clearRect(0, 0, w, h);
 
-            ctx.save();
-
-            ctx.strokeStyle = this.options.handleColor;
-            ctx.lineWidth = 2;
-
-            // Draw patches outline
-            for (let patch of this.patch.bezierPatches) {
-                let cps = patch.controlPoints;
-                let vertices = [
-                    cps[0], cps[1], cps[2], cps[3],
-                    cps[7], cps[11], cps[15], cps[14],
-                    cps[13], cps[12], cps[8], cps[4]
-                ]
-
-                ctx.beginPath();
-                for (let i = 0; i < vertices.length; i++) {
-                    let p = this.worldToScreen(vertices[i]);
-                    i == 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
-                }
-                ctx.closePath();
-                ctx.stroke();
-
+            let setShadow = () => {
+                ctx.shadowOffsetX = ctx.shadowOffsetY = 1;
+                ctx.shadowColor = "rgba(0,0,0,0.25)";
             }
 
-            let u0 = new THREE.Vector2();
-            let u1 = new THREE.Vector2();
-            let v0 = new THREE.Vector2();
-            let v1 = new THREE.Vector2();
+            // Draw patches outline
 
-            ctx.lineWidth = 1;
-            ctx.globalAlpha = 0.5;
+            ctx.save();
+            {
+                ctx.strokeStyle = this.options.primaryColor;
+                ctx.lineWidth = 2;
+                setShadow();
+
+
+                for (let patch of this.patch.bezierPatches) {
+                    let cps = patch.controlPoints;
+                    let vertices = [
+                        cps[0], cps[1], cps[2], cps[3],
+                        cps[7], cps[11], cps[15], cps[14],
+                        cps[13], cps[12], cps[8], cps[4]
+                    ]
+
+                    ctx.beginPath();
+                    for (let i = 0; i < vertices.length; i++) {
+                        let p = this.worldToScreen(vertices[i]);
+                        i == 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y);
+                    }
+                    ctx.closePath();
+                    ctx.stroke();
+
+                }
+            }
+            ctx.restore();
+
+
 
 
             // Draw patches interior
-            for (let patch of this.patch.bezierPatches) {
+            ctx.save();
+            {
+                let u0 = new THREE.Vector2();
+                let u1 = new THREE.Vector2();
+                let v0 = new THREE.Vector2();
+                let v1 = new THREE.Vector2();
 
-                let cps = patch.controlPoints;
+                ctx.lineWidth = 1;
+                ctx.globalAlpha = 0.5;
+                ctx.strokeStyle = this.options.primaryColor;
 
-                for (let i = 0; i < 3; i++) {
-                    for (let j = 1; j < 3; j++) {
-                        // Horizontal
-                        u0.copy(this.worldToScreen(cps[j * 4 + i]));
-                        u1.copy(this.worldToScreen(cps[j * 4 + i + 1]));
+                for (let patch of this.patch.bezierPatches) {
 
-                        ctx.beginPath();
-                        ctx.moveTo(u0.x, u0.y)
-                        ctx.lineTo(u1.x, u1.y);
-                        ctx.stroke();
+                    let cps = patch.controlPoints;
 
-                        // Vertical
-                        v0.copy(this.worldToScreen(cps[i * 4 + j]));
-                        v1.copy(this.worldToScreen(cps[(i + 1) * 4 + j]));
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 1; j < 3; j++) {
+                            // Horizontal
+                            u0.copy(this.worldToScreen(cps[j * 4 + i]));
+                            u1.copy(this.worldToScreen(cps[j * 4 + i + 1]));
 
-                        ctx.beginPath();
-                        ctx.moveTo(v0.x, v0.y)
-                        ctx.lineTo(v1.x, v1.y);
-                        ctx.stroke();
+                            ctx.beginPath();
+                            ctx.moveTo(u0.x, u0.y)
+                            ctx.lineTo(u1.x, u1.y);
+                            ctx.stroke();
 
+                            // Vertical
+                            v0.copy(this.worldToScreen(cps[i * 4 + j]));
+                            v1.copy(this.worldToScreen(cps[(i + 1) * 4 + j]));
+
+                            ctx.beginPath();
+                            ctx.moveTo(v0.x, v0.y)
+                            ctx.lineTo(v1.x, v1.y);
+                            ctx.stroke();
+
+                        }
                     }
+
                 }
 
             }
-
             ctx.restore();
+
+            // Horizontal or vertical cut
+            ctx.save();
+            {
+
+                ctx.strokeStyle = this.options.secondaryColor;
+                ctx.setLineDash([10]);
+                ctx.lineWidth = 2;
+                setShadow();
+
+                if (this.selectedTool === Tools.VerticalCut || this.selectedTool === Tools.HorizontalCut) {
+                    let uv = this.intersectMesh(this.mouse.ndc);
+                    if (uv) {
+                        ctx.beginPath();
+                        for (let i = 0; i <= this.options.gridSize; i++) {
+                            let point = this.patch.compute(
+                                this.selectedTool == Tools.HorizontalCut ? i / this.options.gridSize : uv.x,
+                                this.selectedTool == Tools.HorizontalCut ? uv.y : i / this.options.gridSize,
+                                this.options.mode
+                            );
+
+                            let screenPos = this.worldToScreen(point);
+
+                            i == 0 ? ctx.moveTo(screenPos.x, screenPos.y) : ctx.lineTo(screenPos.x, screenPos.y);
+
+                        }
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.restore();
+
+            // Draw selection rect
+            ctx.save();
+            {
+                if (this.selectionRect) {
+                    ctx.strokeStyle = ctx.fillStyle = this.options.secondaryColor;
+                    ctx.lineJoin = "round";
+                    ctx.globalAlpha = 0.2;
+                    ctx.fillRect(
+                        this.selectionRect.min.x,
+                        this.selectionRect.min.y,
+                        this.selectionRect.max.x - this.selectionRect.min.x,
+                        this.selectionRect.max.y - this.selectionRect.min.y
+                    );
+                    ctx.globalAlpha = 1;
+                    ctx.strokeRect(
+                        this.selectionRect.min.x,
+                        this.selectionRect.min.y,
+                        this.selectionRect.max.x - this.selectionRect.min.x,
+                        this.selectionRect.max.y - this.selectionRect.min.y
+                    );
+                }
+
+            }
+            ctx.restore();
+
+
+
+
+        }
+
+        /**
+         * Aligns the selected control points to the given direction
+         * @param {"left"|"right"|"top"|"bottom"} direction The alignment direction
+         */
+        alignSelectedPoints(direction) {
+            if (this.selectedControlPoints.length < 2)
+                return;
+            if (direction === "left") {
+                let x = Math.min(...this.selectedControlPoints.map(c => c.x));
+                this.selectedControlPoints.forEach(e => e.x = x);
+                this.saveHistory();
+            } else if (direction === "right") {
+                let x = Math.max(...this.selectedControlPoints.map(c => c.x));
+                this.selectedControlPoints.forEach(e => e.x = x);
+                this.saveHistory();
+            } else if (direction === "top") {
+                let y = Math.max(...this.selectedControlPoints.map(c => c.y));
+                this.selectedControlPoints.forEach(e => e.y = y);
+                this.saveHistory();
+            } else if (direction === "bottom") {
+                let y = Math.min(...this.selectedControlPoints.map(c => c.y));
+                this.selectedControlPoints.forEach(e => e.y = y);
+                this.saveHistory();
+            } else {
+                throw new Error("Invalid alignment direction: " + direction);
+            }
         }
 
 
@@ -1305,10 +1416,12 @@
         loop() {
             window.requestAnimationFrame(this.loop.bind(this));
 
+
+
             this.updateProjectionMatrix();
             this.updatePatch();
             this.updateMeshes();
-            this.drawUI();
+            this.updateUI();
 
             this.renderer.clearColor();
 
@@ -1378,6 +1491,16 @@
             this.camera.updateProjectionMatrix();
         }
 
+        undo() {
+            this.history.back();
+            this.restoreHistory();
+        }
+
+        redo() {
+            this.history.forward();
+            this.restoreHistory();
+        }
+
         /**
          * Updates the size of the renderer and the projection matrix
          * @private
@@ -1386,6 +1509,10 @@
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
             this.uiCanvas.width = this.container.clientWidth;
             this.uiCanvas.height = this.container.clientHeight;
+
+            this.containerWidth = this.container.clientWidth;
+            this.containerHeight = this.container.clientHeight;
+
             this.updateProjectionMatrix();
         }
 
@@ -1395,45 +1522,6 @@
 
         keyup(evt) {
             delete this.keystate[evt.code];
-        }
-
-        keypress(evt) {
-            if (evt.ctrlKey) {
-                switch (evt.code) {
-                    case "KeyZ": // Undo
-                        this.history.back();
-                        this.restoreHistory();
-                        break;
-                    case "KeyY": // Redo
-                        this.history.forward();
-                        this.restoreHistory();
-                        break;
-                }
-            }
-
-            if (evt.code === "KeyS") {
-
-                let uv = this.intersectMesh(this.mouse.ndc);
-
-                if (uv) {
-                    this.patch.subdivideHorizontal(uv.y);
-                    this.saveHistory();
-                }
-
-            }
-
-
-            if (evt.code === "KeyA") {
-
-                let uv = this.intersectMesh(this.mouse.ndc);
-
-                if (uv) {
-                    this.patch.subdivideVertical(uv.x);
-                    this.saveHistory();
-                }
-
-            }
-
         }
 
         intersectMesh(ndc) {
@@ -1448,14 +1536,90 @@
 
         }
 
+        updateMousePosition(evt) {
+            let t = evt.target;
+            let [mx, my] = [evt.offsetX, evt.offsetY];
+
+            if (t !== this.renderer.domElement) {
+                mx += t.offsetLeft
+                my += t.offsetTop;
+            }
+
+            // Update global mouse position
+            this.mouse.prev.ndc.copy(this.mouse.ndc);
+            this.mouse.prev.position.copy(this.mouse.position);
+            this.mouse.prev.world.copy(this.mouse.world);
+
+            this.mouse.position.set(mx, my, 0);
+            this.mouse.ndc.set(
+                mx / this.container.clientWidth * 2 - 1,
+                - (my / this.container.clientHeight) * 2 + 1,
+                0
+            )
+            this.mouse.world.copy(this.screenToWorld(mx, my));
+
+        }
+
+        click(evt) {
+
+            this.updateMousePosition(evt);
+
+            if (this.selectedTool === Tools.HorizontalCut) {
+                let uv = this.intersectMesh(this.mouse.ndc);
+                if (uv) {
+                    this.patch.subdivideHorizontal(uv.y);
+                    this.saveHistory();
+                }
+            }
+
+
+            if (this.selectedTool === Tools.VerticalCut) {
+                let uv = this.intersectMesh(this.mouse.ndc);
+                if (uv) {
+                    this.patch.subdivideVertical(uv.x);
+                    this.saveHistory();
+                }
+            }
+        }
+
         mouseleave(evt) {
             this.mouse.leftButtonDown = false;
             this.mouse.rightButtonDown = false;
         }
 
         mousedown(evt) {
+
+
             this.mouse.leftButtonDown = evt.button === 0;
             this.mouse.rightButtonDown = evt.button === 2;
+            this.updateMousePosition(evt);
+
+            if (this.selectedTool === Tools.Arrow) {
+                if (evt.bmControlPoint) {
+                    let cp = evt.bmControlPoint;
+
+                    if (!this.selectedControlPoints.includes(cp)) {
+                        if (this.keystate["ShiftLeft"]) {
+                            this.selectedControlPoints.push(cp);
+                        } else {
+                            this.selectedControlPoints = [cp];
+                        }
+                    }
+
+
+                } else {
+                    if (!this.keystate["ShiftLeft"])
+                        this.selectedControlPoints = [];
+                }
+            }
+
+            this.dragInfo = {
+                position: new THREE.Vector3().copy(this.mouse.position),
+                patchData: this.patch.save(),
+                controlPoint: !!evt.bmControlPoint
+            }
+
+            evt.preventDefault();
         }
 
         /**
@@ -1464,31 +1628,26 @@
          * @param {MouseEvent} evt 
          */
         mousemove(evt) {
-            let t = evt.target;
-            let [mx, my] = [evt.offsetX, evt.offsetY];
+            this.updateMousePosition(evt);
 
-            if (t !== this.renderer.domElement) {
-                // it's an handle
-                mx += t.offsetLeft
-                my += t.offsetTop;
+            this.selectionRect = null;
+
+            if (this.selectedTool === Tools.Arrow) {
+                if (this.dragInfo && (this.mouse.leftButtonDown || this.mouse.rightButtonDown)) {
+                    if (this.dragInfo.controlPoint) {
+                        let offset = buffers.vec3[0].copy(this.mouse.world).sub(this.mouse.prev.world);
+                        let mirror = this.mouse.rightButtonDown && this.selectedControlPoints.length == 1;
+                        this.selectedControlPoints.forEach(c => c.moveBy(offset, mirror));
+                    } else {
+                        let p0 = this.dragInfo.position;
+                        let p1 = this.mouse.position;
+                        this.selectionRect = {
+                            min: new THREE.Vector3(Math.min(p0.x, p1.x), Math.min(p0.y, p1.y), 0),
+                            max: new THREE.Vector3(Math.max(p0.x, p1.x), Math.max(p0.y, p1.y), 0),
+                        }
+                    }
+                }
             }
-
-
-            this.mouse.prev.ndc.copy(this.mouse.ndc);
-            this.mouse.prev.pos.copy(this.mouse.pos);
-
-            this.mouse.pos.set(mx, my, 0);
-            this.mouse.ndc.set(
-                mx / this.container.clientWidth * 2 - 1,
-                - (my / this.container.clientHeight) * 2 + 1,
-                0
-            )
-
-
-            if (this.selectedHandle) {
-                this.selectedHandle.move(mx, my);
-            }
-
 
         }
 
@@ -1501,17 +1660,40 @@
 
             this.mouse.leftButtonDown = false;
             this.mouse.rightButtonDown = false;
+            this.updateMousePosition(evt);
 
-            if (this.selectedHandle) {
+            if (this.selectedTool === Tools.Arrow) {
 
-                if (this.dragHandleInfo.position.distanceTo(this.selectedHandle) > 0) {
-                    this.saveHistory();
+                if (this.selectionRect) {
+                    // Find all the control selected control points
+                    let cps = [];
+
+                    for (let patch of this.patch.bezierPatches) {
+                        cps.push(...patch.controlPoints.filter(c => {
+
+                            let pos = this.worldToScreen(c);
+                            return !cps.includes(c) && pos.x >= this.selectionRect.min.x && pos.x <= this.selectionRect.max.x &&
+                                pos.y >= this.selectionRect.min.y && pos.y <= this.selectionRect.max.y;
+                        }));
+                    }
+
+                    if (this.keystate["ShiftLeft"]) {
+                        this.selectedControlPoints.push(...cps.filter(c => !this.selectedControlPoints.includes(c)));
+                    } else {
+                        this.selectedControlPoints = cps;
+                    }
+
+                } else if (this.selectedControlPoints.length > 0) {
+                    if (this.dragInfo.position.distanceTo(this.mouse.position) > 0) {
+                        this.saveHistory();
+                    }
                 }
-
-                this.dragHandleInfo = null;
-                this.selectedHandle = null;
             }
+
+            this.dragInfo = null;
+
         }
+
 
         /**
          * Computes the world coordinates given the screen coordinates relative to the canvas
@@ -1535,19 +1717,10 @@
          */
         worldToScreen(v) {
             let uv = buffers.vec3[0].copy(v).project(this.camera);
-            return new THREE.Vector2(
-                (uv.x + 1) / 2 * this.container.clientWidth,
-                this.container.clientHeight - (uv.y + 1) / 2 * this.container.clientHeight
+            return buffers.vec2[0].set(
+                (uv.x + 1) / 2 * this.containerWidth,
+                this.containerHeight - (uv.y + 1) / 2 * this.containerHeight
             );
-        }
-
-        setSelectedHandle(handle) {
-            this.selectedHandle = handle;
-
-            this.dragHandleInfo = {
-                position: new THREE.Vector3().copy(handle),
-                patchData: this.patch.save()
-            }
         }
 
     }
