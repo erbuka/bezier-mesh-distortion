@@ -2,7 +2,7 @@
 (function (exportObj, exportName) {
     "use strict";
 
-    // Temporary buffers (for memory reuse/efficency)
+    // Temporary buffers (for memory reuse + efficiency)
     let buffers = {};
     {
         buffers.vec3 = [];
@@ -15,6 +15,9 @@
 
     }
 
+    /**
+     * Keys for tools
+     */
     const Tools = {
         Arrow: "Arrow",
         HorizontalCut: "Horizontal Cut",
@@ -22,40 +25,78 @@
         Pan: "Pan"
     }
 
+    /**
+     * Class to hold a grid (2d matrix) of objects.
+     * It has handy mehtods for manipulating rows and
+     * columns
+     */
     class Grid {
+        /**
+         * @constructor
+         * @param {number} [rows] The initial number of rows
+         * @param {nunber} [cols] The initial number of columns
+         */
         constructor(rows, cols) {
-            this.rowCount = rows;
-            this.colCount = cols;
+            this.rowCount = rows || 1;
+            this.colCount = cols || 1;
             this.cells = new Array(rows * cols).fill(null);
         }
-
+        /**
+         * Iterate through the cells
+         */
         [Symbol.iterator]() { return this.cells.values(); }
 
+        /**
+         * Applies the given function to all the cells
+         * @param {callback} predicate Function to apply
+         */
         forEach(predicate) {
             this.cells.forEach(predicate);
         }
-
+        /**
+         * Returns the object at i-th row and j-th column
+         * @param {number} i Row index 
+         * @param {number} j Column index
+         * @returns {*} The item, or null if the cell is out of bounds
+         */
         get(i, j) {
             if (i < 0 || i > this.rowCount - 1 || j < 0 || j > this.colCount - 1)
                 return null;
             return this.cells[i * this.colCount + j];
         }
-
+        /**
+         * Sets the cell at i-th row and j-th column with the given value
+         * @param {number} i Row index
+         * @param {number} j Column index
+         * @param {*} v The value
+         */
         set(i, j, v) {
             this.cells[i * this.colCount + j] = v;
         }
 
+        /**
+         * Deletes a column
+         * @param {number} j Column index 
+         */
         deleteColumn(j) {
             for (let i = this.rowCount - 1; i >= 0; i--)
                 this.cells.splice(i * this.colCount + j, 1);
             this.colCount--;
         }
 
+        /**
+         * Deletes a row
+         * @param {number} i The row index 
+         */
         deleteRow(i) {
             this.cells.splice(i * this.colCount, this.colCount);
             this.rowCount--;
         }
 
+        /**
+         * Get the rows as an array
+         * @returns {array} The rows
+         */
         rows() {
             let rows = [];
 
@@ -69,17 +110,29 @@
             return rows;
         }
 
+        /**
+         * Inserts a new row
+         * @param {number} index The index to insert at
+         */
         inserRow(index) {
             this.cells.splice(index * this.colCount, 0, ...new Array(this.colCount).fill(null));
             this.rowCount++;
         }
 
+        /**
+         * Inserts a new column
+         * @param {number} index The index to insert at
+         */
         insertColumn(index) {
             for (let i = 0; i < this.rowCount; i++)
                 this.cells.splice(i * (this.colCount + 1) + index, 0, null);
             this.colCount++;
         }
 
+        /**
+         * Get the columns as an array
+         * @returns {array} The columns
+         */
         columns() {
             let cols = [];
 
@@ -96,12 +149,23 @@
         }
     }
 
+    /**
+     * Helper class to cache textures and avoid reload
+     */
     class Textures {
+        /**
+         * @constructor
+         */
         constructor() {
             this.loader = new THREE.TextureLoader();
             this.texturesMap = {};
         }
 
+        /**
+         * Loads a texture
+         * @param {string} url 
+         * @returns {Promise} a promise that is fulfilled when the texture is loaded
+         */
         load(url) {
             return new Promise((resolve, reject) => {
 
@@ -118,6 +182,9 @@
             });
         }
 
+        /**
+         * Clears the current texture cache
+         */
         clear() {
             for (let t in this.texturesMap)
                 this.texturesMap[t].dispose();
@@ -126,32 +193,54 @@
 
     }
 
+    /**
+     * Class to hold history stack (for undo and redo)
+     */
     class History {
+        /**
+         * @constructor
+         */
         constructor() {
             this.index = -1;
             this.data = [];
         }
 
+        /**
+         * @returns The current history element
+         */
         current() {
             return this.data[this.index];
         }
 
+        /**
+         * Inserts a new element at the current index and deletes all the elements that come next
+         * @param {*} e The data to insert 
+         */
         insert(e) {
             this.index++;
             let deleteCount = Math.max(0, this.data.length - this.index);
             this.data.splice(this.index, deleteCount, e);
         }
 
+        /**
+         * Goes back by one element
+         */
         back() {
             this.index = Math.max(0, this.index - 1);
         }
 
+        /**
+         * Goes forward by one element
+         */
         forward() {
             this.index = Math.min(this.data.length - 1, this.index + 1);
         }
 
     }
 
+    /**
+     * Utility functions
+     */
     class Util {
 
 
@@ -177,6 +266,13 @@
             return vRes.multiplyScalar(f);
         }
 
+        /**
+         * Constructs an array of the given length and fills it with
+         * objects created with the given constructor function
+         * @param {number} size Size of the new array
+         * @param {function} ctor The constructor function
+         * @param  {...any} args The parameters for the constructor
+         */
         static makeArray(size, ctor, ...args) {
             let r = new Array(size);
             for (let i = 0; i < size; i++)
@@ -184,6 +280,12 @@
             return r;
         }
 
+        /**
+         * Computes the Bernstein derivative of grade 3
+         * @param {number} i Index
+         * @param {number} t Curve parameter
+         * @returns {number} The derivative
+         */
         static computeBernsetinDerivative3(i, t) {
             let tt = t * t;
             let mt = 1 - t;
@@ -206,6 +308,7 @@
          * Computes the Bernsetin polinomial of grade 3
          * @param {number} i Index 
          * @param {number} t Curve parameter
+         * @returns {number} The value
          */
         static computeBernsteinBasis3(i, t) {
             let tt = t * t;
@@ -227,6 +330,12 @@
             }
         }
 
+        /**
+         * Applies the deCasteljau algorithm to the given set of points
+         * @param {number} t Curve parameter 
+         * @param  {...THREE.Vector3} points The points
+         * @returns {THREE.Vector3} The computed point 
+         */
         static deCasteljau(t, ...points) {
             let result = [];
             for (let i = 0; i < points.length - 1; i++) {
@@ -235,6 +344,12 @@
             return result;
         }
 
+        /**
+         * Subdivides a curve into 2 curves.
+         * @param {*} t Curve parameter 
+         * @param  {...THREE.Vector3} points The points of the curve
+         * @returns {[Vector3[], Vector3[]]} 2 arrays of points containing the 2 curves
+         */
         static subdivideCurve(t, ...points) {
 
             points = points.map(p => new THREE.Vector3(p.x, p.y, p.z));
@@ -260,13 +375,24 @@
 
     }
 
+    /**
+     * A Bezier curve of grade 3
+     */
     class BezierCurve3 {
+        /**
+         * @constructor
+         * @param  {...THREE.Vector3} pts The points
+         */
         constructor(...pts) {
             if (pts.length !== 4)
                 throw new Error("4 points are required for a bezier curve");
             this.points = pts;
         }
-
+        /**
+         * Computes the curve derivative
+         * @param {number} t The curve parameter
+         * @returns {THREE.Vector3} The result
+         */
         derivative(t) {
             let result = buffers.vec3[0].set(0, 0, 0);
             let v = buffers.vec3[1];
@@ -277,6 +403,11 @@
             return result;
         }
 
+        /**
+         * Computes the curve at the given point
+         * @param {number} t The curve parameter
+         * @returns The calculated curve
+         */
         compute(t) {
             let result = buffers.vec3[0].set(0, 0, 0);
             let v = buffers.vec3[1];
@@ -286,14 +417,28 @@
 
             return result;
         }
-
+        /**
+         * Subdivides this curve into 2 curves
+         * @param {number} t The curve parameter 
+         * @returns {BezierCurve3[2]} The resulting 2 curves
+         */
         subdivide(t) {
             return Util.subdivideCurve(this.points).map(v => new BezierCurve3(v));
         }
 
     }
 
+    /**
+     * Defines a 2d domain for a patch
+     */
     class Domain {
+        /**
+         * @constructor
+         * @param {number} u0 Min u
+         * @param {number} v0 Min V
+         * @param {number} u1 Max U
+         * @param {number} v1 Max V
+         */
         constructor(u0, v0, u1, v1) {
             this.u0 = u0;
             this.u1 = u1;
@@ -301,12 +446,29 @@
             this.v1 = v1;
         }
 
+        /**
+         * Checks if a point is contained in this domain
+         * @param {number} u 
+         * @param {number} v
+         * @returns {boolean} true if the point is included in the domain, false otherwise 
+         */
         contains(u, v) {
             return u >= this.u0 && u <= this.u1 && v >= this.v0 && v <= this.v1;
         }
     }
 
+    /**
+     * A control point with a corresponding dom element.
+     */
     class ControlPoint extends THREE.Vector3 {
+        /**
+         * Creates a new control point and adds his dom element to the UI
+         * @constructor
+         * @param {BezierMeshProjection} ownerProjection An instance of BezierMeshProjection containing this control point
+         * @param {number} [x] The x oordinate
+         * @param {number} [y] The y coordinate
+         * @param {number} [z] The z coordinate
+         */
         constructor(ownerProjection, x, y, z) {
             super(x, y, z);
             this.ownerProjection = ownerProjection;
@@ -316,11 +478,20 @@
             this.mirrorMode = false;
             this.create();
         }
-
+        /**
+         * Helper function to create a control point from a THREE.Vector3
+         * @param {BezierMeshProjection} ownerProjection An instance of BezierMeshProjection containing the new control point
+         * @param {THREE.Vector3} point The point to copy the coordinates from 
+         * @returns {ControlPoint} The new control point
+         */
         static fromVector(ownerProjection, point) {
             return new ControlPoint(ownerProjection, point.x, point.y, point.z);
         }
 
+        /**
+         * Appends the given control points as children of this control point
+         * @param  {...ControlPoint} children The children to add
+         */
         addChildren(...children) {
             for (let c of children)
                 if (!this.children.includes(c))
@@ -328,6 +499,11 @@
             children.forEach(c => c.parent = this);
         }
 
+        /**
+         * Sets this control point to mirror another control point
+         * @param {ControlPoint} other The point to mirror
+         * @param {ControlPoint} reference The reference point for mirroring
+         */
         mirror(other, reference) {
             if (other && reference) {
                 this.mirrorPoint = {
@@ -354,6 +530,11 @@
             }
         }*/
 
+        /**
+         * Moves this control point by the given offset
+         * @param {THREE.Vector3} offset The offset
+         * @param {boolean} mirror Is mirror active?
+         */
         moveBy(offset, mirror) {
             this.add(offset);
 
@@ -363,7 +544,10 @@
             }
 
         }
-
+        /**
+         * Updates this control point, moving the corresponding DOM element
+         * to the correct position, and updates the CSS style
+         */
         update() {
             let screenPos = this.ownerProjection.worldToScreen(this);
 
@@ -376,36 +560,63 @@
             this.domElement.style.display = this.ownerProjection.previewMode ? "none" : null;
         }
 
+        /**
+         * @private
+         * Creates the DOM element associated with this control point
+         */
         create() {
             this.domElement.classList.add("bm-handle");
             this.domElement.addEventListener("mousedown", (evt) => { evt.bmControlPoint = this; })
             this.domElement.addEventListener("mouseup", (evt) => { evt.bmControlPoint = this; })
             this.ownerProjection.container.appendChild(this.domElement);
         }
-
+        /**
+         * Detaches the DOM element associated with this control point
+         */
         dispose() {
             if (this.domElement) {
                 this.ownerProjection.container.removeChild(this.domElement);
                 this.domElement = null;
             }
         }
-
+        /**
+         * Clone this control point
+         * @returns {ControlPoint} A new control point equal to this
+         */
         clone() {
             return new ControlPoint(this.ownerProjection, this.x, this.y, this.z);
         }
 
+        /**
+         * @returns {THREE.Vector3} A vector with the same position as this control poi
+         */
         toVector3() {
             return new THREE.Vector3(this.x, this.y, this.z);
         }
 
     }
 
+    /**
+     * A composite patch
+     */
     class Patch {
+        /**
+         * @constructor
+         * @param {BezierMeshProjection} ownerProjection The projection holding this patch
+         */
         constructor(ownerProjection) {
             this.ownerProjection = ownerProjection;
             this.dispose();
         }
 
+        /**
+         * Initializes this patch with a single bicubic bezier patch given
+         * the 4 corners. The other control points are interpolated
+         * @param {THREE.Vector3} topLeft Top left corner
+         * @param {THREE.Vector3} topRight Top right corner
+         * @param {THREE.Vector3} bottomLeft Bottom left corner
+         * @param {THREE.Vector3} bottomRight Bottom right corner
+         */
         initFromCorners(topLeft, topRight, bottomLeft, bottomRight) {
 
             let cp = new Array(16);
@@ -442,12 +653,18 @@
 
         }
 
+        /**
+         * Disposes the resources associated with this patch
+         */
         dispose() {
             if (this.bezierPatches)
                 this.bezierPatches.forEach(p => p.dispose());
             this.bezierPatches = null;
         }
 
+        /**
+         * Recreates all the links for all the control points
+         */
         relinkControlPoints() {
             for (let p of this.bezierPatches) {
                 let cp = p.controlPoints;
@@ -519,6 +736,10 @@
 
         }
 
+        /**
+         * Serializes this patch data.
+         * @returns {object} The serialized patch
+         */
         save() {
 
             let ref = (p) => {
@@ -576,6 +797,10 @@
 
         }
 
+        /**
+         * Restores a serialized patch
+         * @param {object} savedInstance The serialized patch data
+         */
         restore(savedInstance) {
 
             this.dispose();
@@ -612,6 +837,13 @@
 
         }
 
+        /**
+         * Computes the value of this patch at the given coordinates
+         * @param {number} u The u coordinate
+         * @param {number} v The v coordinate
+         * @param {"bezier"|"linear"} mode The computation mode
+         * @returns {THREE.Vector3} The value of the patch
+         */
         compute(u, v, mode) {
             for (let p of this.bezierPatches) {
                 if (p.domain.contains(u, v))
@@ -620,11 +852,17 @@
             debugger;
         }
 
-
+        /**
+         * Updates this patch
+         */
         update() {
             this.bezierPatches.forEach(p => p.update());
         }
 
+        /**
+         * Subdivides this patch along the u coordinate
+         * @param {number} u The u coordinate
+         */
         subdivideVertical(u) {
             let colIndex = this.bezierPatches.columns().findIndex(r => r[0].domain.u0 <= u && r[0].domain.u1 >= u);
             let col = this.bezierPatches.columns()[colIndex];
@@ -740,7 +978,10 @@
             this.relinkControlPoints();
         }
 
-
+        /**
+         * Subdivides this patch along the v coordinate
+         * @param {number} v The v coordinate
+         */
         subdivideHorizontal(v) {
             let rowIndex = this.bezierPatches.rows().findIndex(r => r[0].domain.v0 <= v && r[0].domain.v1 >= v);
             let row = this.bezierPatches.rows()[rowIndex];
@@ -862,13 +1103,29 @@
 
     }
 
+    /**
+     * A bicubic bezier patch
+     */
     class BezierPatch3 {
+        /**
+         * @constructor
+         * @param {BezierMeshProjection} ownerProjection The projection owning this patch
+         * @param {Domain} domain The patch's domain
+         * @param {ControlPoint[16]} controlPoints The patch's control points
+         */
         constructor(ownerProjection, domain, controlPoints) {
             this.ownerProjection = ownerProjection;
             this.controlPoints = controlPoints;
             this.domain = domain;
         }
 
+        /**
+         * Computes this patch at the given coordinates
+         * @param {number} u The u coordinate
+         * @param {number} v The v coordinate
+         * @param {"linear"|"bezier"} mode The computation mode
+         * @returns {THREE.Vector3} The value of the patch
+         */
         compute(u, v, mode) {
 
             u = (u - this.domain.u0) / (this.domain.u1 - this.domain.u0);
@@ -897,7 +1154,10 @@
                 throw new Error("Invalid patch compute mode: " + mode);
             }
         }
-
+        
+        /**
+         * Updates this patch
+         */
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
@@ -911,8 +1171,11 @@
             */
 
             cp.forEach(c => c.update());
-        }
+        }   
 
+        /**
+         * Releases all the resources associated with this patch
+         */
         dispose() {
             this.controlPoints.forEach(p => p.dispose());
         }
@@ -928,6 +1191,8 @@
      * @param {number} [options.gridSize] The number of subdivisions.
      * @param {string} [options.zoom] Camera zoom.
      * @param {string} [options.gridColor] Color used for grid lines and grid points.
+     * @param {string} [options.primaryColor] Primary UI color
+     * @param {string} [options.secondaryColor] Secondary UI color
      * @param {"bezier"|"linear"} [options.mode] Interpolation mode
      * @param {string} [options.texture] The url of the texture to be used
      * @param {string} [options.background] The image to be placed in the background
@@ -976,10 +1241,12 @@
 
         /**
          * Change the current configuration.
-         * @param {object} options 
+         * @param {object} options
          * @param {number} [options.gridSize] The number of subdivisions.
          * @param {string} [options.zoom] Camera zoom.
          * @param {string} [options.gridColor] Color used for grid lines and grid points.
+         * @param {string} [options.primaryColor] Primary UI color
+         * @param {string} [options.secondaryColor] Secondary UI color
          * @param {"bezier"|"linear"} [options.mode] Interpolation mode
          * @param {string} [options.texture] The url of the texture to be used
          * @param {string} [options.background] The image to be placed in the background
@@ -1213,15 +1480,25 @@
 
         }
 
+        /**
+         * Restores the current history element
+         */
         restoreHistory() {
             let current = this.history.current();
             this.patch.restore(current.patchData);
         }
 
+        /**
+         * Pushes the current patch data into the history stack
+         */
         saveHistory() {
             this.history.insert({ patchData: this.patch.save() });
         }
 
+        /**
+         * Updates UI
+         * @private
+         */
         updateUI() {
 
             // Do not draw UI in previewMode
@@ -1429,7 +1706,10 @@
             this.renderer.render(this.scene, this.camera);
         }
 
-
+        /**
+         * Updates the patch
+         * @private
+         */
         updatePatch() {
             this.patch.update();
         }
@@ -1476,6 +1756,7 @@
 
 
         }
+
         /**
          * Updates the projection matrix
          * @private
@@ -1492,11 +1773,17 @@
             this.camera.updateProjectionMatrix();
         }
 
+        /**
+         * Undo the last command (goes back in history)
+         */
         undo() {
             this.history.back();
             this.restoreHistory();
         }
 
+        /**
+         * Redo the last command (goes forward in history)
+         */
         redo() {
             this.history.forward();
             this.restoreHistory();
@@ -1517,14 +1804,29 @@
             this.updateProjectionMatrix();
         }
 
+        /**
+         * Key down event handler
+         * @private
+         * @param {KeyEvent} evt The event
+         */
         keydown(evt) {
             this.keystate[evt.code] = true;
         }
 
+        /**
+         * Key up event handles
+         * @private
+         * @param {KeyEvent} evt The event
+         */
         keyup(evt) {
             delete this.keystate[evt.code];
         }
 
+        /**
+         * Tests if the mesh is intersected by the given ray
+         * @private
+         * @param {THREE.Vector3} ndc Normalized device coordinates
+         */
         intersectMesh(ndc) {
             this.raycaster.setFromCamera(ndc, this.camera);
             let intersects = this.raycaster.intersectObject(this.meshes.plane);
@@ -1537,6 +1839,11 @@
 
         }
 
+        /**
+         * Updates the mouse position and other info
+         * @private
+         * @param {MouseEvent} evt The event
+         */
         updateMousePosition(evt) {
             let t = evt.target;
             let [mx, my] = [evt.offsetX, evt.offsetY];
@@ -1561,6 +1868,11 @@
 
         }
 
+        /**
+         * Click event handler
+         * @private
+         * @param {MouseEvent} evt The event
+         */
         click(evt) {
 
             this.updateMousePosition(evt);
@@ -1583,11 +1895,21 @@
             }
         }
 
+        /**
+         * Mouse leave event handler
+         * @private
+         * @param {MouseEvent} evt The event
+         */
         mouseleave(evt) {
             this.mouse.leftButtonDown = false;
             this.mouse.rightButtonDown = false;
         }
 
+        /**
+         * Mouse down event handler
+         * @private
+         * @param {MouseEvent} evt The event
+         */
         mousedown(evt) {
 
             this.mouse.leftButtonDown = evt.button === 0;
@@ -1627,9 +1949,9 @@
         }
 
         /**
-         * Mouse move handle of the canvas
+         * Mouse move event handler
          * @private
-         * @param {MouseEvent} evt 
+         * @param {MouseEvent} evt The event
          */
         mousemove(evt) {
             this.updateMousePosition(evt);
@@ -1662,9 +1984,9 @@
         }
 
         /**
-         * Mouse up event handler for window
+         * Mouse up event handler
          * @private
-         * @param {MouseEvent} evt 
+         * @param {MouseEvent} evt The event
          */
         mouseup(evt) {
 
@@ -1734,7 +2056,7 @@
         }
 
     }
-
+    
     exportObj[exportName] = {
         BezierMeshProjection: BezierMeshProjection
     }
