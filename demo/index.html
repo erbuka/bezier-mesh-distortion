@@ -81,7 +81,6 @@
                 if(evt.code === "Space" && projection.selectedTool !== "Pan") {
                     previousTool = projection.selectedTool;
                     projection.selectedTool = "Pan";
-                    console.log("down");
                 }
             });
 
@@ -89,7 +88,6 @@
                 if(evt.code === "Space") {
                     projection.selectedTool = previousTool;
                     console.log(previousTool);
-                    console.log("up");
                 }
             });
 
