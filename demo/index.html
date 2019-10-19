@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="../src/bezier-mesh-projection.css">
     <script src="../vendor/dat.gui.js"></script>
     <script src="../vendor/three.js"></script>
+    <script src="../vendor/three-gltfexporter.js"></script>
     <script src="../src/bezier-mesh-projection.js"></script>
 </head>
 
@@ -32,16 +33,30 @@
                 secondaryColor: "#ffcc00",
 
                 mode: "bezier",
-                
+
                 texture: "coca-cola.jpg",
                 background: "bottle.jpg",
             };
+
+            let download = function (name, text) {
+                let element = document.createElement('a');
+                element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+                element.setAttribute('download', name);
+
+                element.style.display = 'none';
+                document.body.appendChild(element);
+
+                element.click();
+
+                document.body.removeChild(element);
+            }
 
             let functions = {
                 alignLeft: () => projection.alignSelectedPoints("left"),
                 alignRight: () => projection.alignSelectedPoints("right"),
                 alignTop: () => projection.alignSelectedPoints("top"),
                 alignBottom: () => projection.alignSelectedPoints("bottom"),
+                exportGLTF: () => projection.export().then(data => download("export.gltf", JSON.stringify(data)))
             }
 
             let projection = new bm.BezierMeshProjection(options);
@@ -78,14 +93,14 @@
             });
 
             window.addEventListener("keydown", (evt) => {
-                if(evt.code === "Space" && projection.selectedTool !== "Pan") {
+                if (evt.code === "Space" && projection.selectedTool !== "Pan") {
                     previousTool = projection.selectedTool;
                     projection.selectedTool = "Pan";
                 }
             });
 
             window.addEventListener("keyup", (evt) => {
-                if(evt.code === "Space") {
+                if (evt.code === "Space") {
                     projection.selectedTool = previousTool;
                     console.log(previousTool);
                 }

@@ -1154,7 +1154,7 @@
                 throw new Error("Invalid patch compute mode: " + mode);
             }
         }
-        
+
         /**
          * Updates this patch
          */
@@ -1171,7 +1171,7 @@
             */
 
             cp.forEach(c => c.update());
-        }   
+        }
 
         /**
          * Releases all the resources associated with this patch
@@ -1237,6 +1237,31 @@
          */
         restore(savedInstance) {
 
+        }
+
+        /**
+         * Exports the current mesh (plane only) in GLTF format. The result will also include
+         * some custom data:
+         * - bm_MeshCorners: the main 4 corners of the mesh
+         * @returns {object} The GLTF data
+         */
+        export() {
+            return new Promise((resolve, reject) => {
+                new THREE.GLTFExporter().parse(this.meshes.plane, (data) => {
+
+                    let patches = this.patch.bezierPatches;
+                    let rows = patches.rowCount;
+                    let cols = patches.colCount;
+
+                    data.bm_MeshCorners = {
+                        topLeft: patches.get(rows - 1, 0).controlPoints[12].toVector3(),
+                        topRight: patches.get(rows - 1, cols - 1).controlPoints[15].toVector3(),
+                        bottomRight: patches.get(0, cols - 1).controlPoints[3].toVector3(),
+                        bottomLeft: patches.get(0, 0).controlPoints[0].toVector3(),
+                    }
+                    resolve(data);
+                });
+            });
         }
 
         /**
@@ -1975,7 +2000,7 @@
                 }
             }
 
-            if(this.selectedTool === Tools.Pan && this.mouse.leftButtonDown) {
+            if (this.selectedTool === Tools.Pan && this.mouse.leftButtonDown) {
                 let offset = buffers.vec3[0].copy(this.dragInfo.world).sub(this.mouse.world);
                 this.cameraOrigin.add(offset);
                 this.updateProjectionMatrix();
@@ -2056,7 +2081,7 @@
         }
 
     }
-    
+
     exportObj[exportName] = {
         BezierMeshProjection: BezierMeshProjection
     }
