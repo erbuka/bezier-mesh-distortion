@@ -1221,8 +1221,8 @@
 
 
         /**
-         * Saves the current configuration so it can be restored later
-         * @returns {object} The current configuration
+         * Saves the current patch so it can be restored later
+         * @returns {object} The current patch
          */
         save() {
             return {
@@ -1239,8 +1239,8 @@
         }
 
         /**
-         * Restores the given configuration
-         * @param {object} savedInstance The configuration to be restored
+         * Restores the given saved patch
+         * @param {object} savedInstance The patch to be restored
          */
         restore(savedInstance) {
             this.reset(1, 1, savedInstance.backgroundWidth, savedInstance.backgroundHeight);
