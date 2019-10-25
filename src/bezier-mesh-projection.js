@@ -659,7 +659,7 @@
         dispose() {
             if (this.bezierPatches)
                 this.bezierPatches.forEach(p => p.dispose());
-            this.bezierPatches = null;
+            this.bezierPatches = [];
         }
 
         /**
@@ -849,7 +849,6 @@
                 if (p.domain.contains(u, v))
                     return p.compute(u, v, mode);
             };
-            debugger;
         }
 
         /**
@@ -1187,7 +1186,6 @@
      * @constructor
      * @param {object} options
      * @param {string} options.container The selector for the canvas container
-     * @param {number} [options.aspectRatio] The initial aspect ratio of the plane.
      * @param {number} [options.gridSize] The number of subdivisions.
      * @param {string} [options.zoom] Camera zoom.
      * @param {string} [options.gridColor] Color used for grid lines and grid points.
@@ -1202,9 +1200,8 @@
 
             this.options = {
                 container: null,
-                aspectRatio: 1,
                 gridSize: 20,
-                zoom: 1,
+                zoom: 0.9,
 
                 gridColor: "#666666",
 
@@ -1216,9 +1213,9 @@
                 background: null,
             }
 
-
-            this.initialize(options.container, options.aspectRatio);
-            this.reset(options);
+            this.initialize(options.container);
+            this.reset(640, 640, 1024, 768);
+            this.configure(options);
             this.loop();
         }
 
@@ -1228,7 +1225,17 @@
          * @returns {object} The current configuration
          */
         save() {
-
+            return {
+                backgroundWidth: this.backgroundWidth,
+                backgroundHeight: this.backgroundHeight,
+                options: {
+                    texture: this.options.texture,
+                    backgorund: this.options.background,
+                    gridSize: this.options.gridSize,
+                    mode: this.options.mode
+                },
+                patchData: this.patch.save()
+            }
         }
 
         /**
@@ -1236,7 +1243,10 @@
          * @param {object} savedInstance The configuration to be restored
          */
         restore(savedInstance) {
-
+            this.reset(1, 1, savedInstance.backgroundWidth, savedInstance.backgroundHeight);
+            this.patch.restore(savedInstance.patchData);
+            this.configure(savedInstance.options);
+            this.createHistory();
         }
 
         /**
@@ -1265,6 +1275,37 @@
         }
 
         /**
+         * Resets the patch and the background plane
+         * @param {number} patchWidth Patch width in pixels
+         * @param {number} patchHeight Patch height in pixels
+         * @param {number} backgroundWidth Background width in pixels
+         * @param {number} backgroundHeight Background height in pixels
+         */
+        reset(patchWidth, patchHeight, backgroundWidth, backgroundHeight) {
+            this.backgroundWidth = backgroundWidth;
+            this.backgroundHeight = backgroundHeight;
+
+            // Create initial patch
+            {
+
+                let bl = buffers.vec3[0].set((backgroundWidth - patchWidth) / 2, (backgroundHeight - patchHeight) / 2);
+                let br = buffers.vec3[1].set((backgroundWidth - patchWidth) / 2 + patchWidth, (backgroundHeight - patchHeight) / 2);
+                let tl = buffers.vec3[2].set((backgroundWidth - patchWidth) / 2, (backgroundHeight - patchHeight) / 2 + patchHeight);
+                let tr = buffers.vec3[3].set((backgroundWidth - patchWidth) / 2 + patchWidth, (backgroundHeight - patchHeight) / 2 + patchHeight);
+
+                this.patch.initFromCorners(tl, tr, bl, br);
+            }
+
+            // Reset the camera
+            this.cameraOrigin.set(backgroundWidth / 2, backgroundHeight / 2);
+
+            // Reset history and create initial state
+            this.createHistory();
+
+            return this;
+        }
+
+        /**
          * Change the current configuration.
          * @param {object} options
          * @param {number} [options.gridSize] The number of subdivisions.
@@ -1276,7 +1317,7 @@
          * @param {string} [options.texture] The url of the texture to be used
          * @param {string} [options.background] The image to be placed in the background
          */
-        reset(options) {
+        configure(options) {
 
             Object.assign(this.options, options);
 
@@ -1298,21 +1339,15 @@
             // Create background plane
             {
 
+                let planeGeom = new THREE.PlaneGeometry();
+
+                this.meshes.backgroundPlane = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+
+                this.scene.add(this.meshes.backgroundPlane);
+
                 this.textures.load(this.options.background).then(tex => {
-                    let planeGeom = new THREE.PlaneGeometry(
-                        tex.image.width / tex.image.height * 2,
-                        2
-                    );
-
-                    planeGeom.translate(0, 0, -0.1);
-
-                    this.meshes.backgroundPlane = new THREE.Mesh(planeGeom, new THREE.MeshBasicMaterial({
-                        color: 0xffffff,
-                        map: tex
-                    }));
-
-                    this.scene.add(this.meshes.backgroundPlane);
-
+                    this.meshes.backgroundPlane.material.map = tex;
+                    this.meshes.backgroundPlane.material.needsUpdate = true;
                 });
 
             }
@@ -1417,7 +1452,7 @@
          * Called after the component is constructed.
          * @private
          */
-        initialize(container, aspectRatio) {
+        initialize(container) {
 
             // Main container
             this.container = document.querySelector(container);
@@ -1450,24 +1485,12 @@
 
             // Init three.js renderer
             this.renderer = new THREE.WebGLRenderer({ antialias: true });
-            this.textures = new Textures;
-            this.history = new History();
-
+            this.textures = new Textures();
             this.raycaster = new THREE.Raycaster();
 
             // Create initial patch
-            {
+            this.patch = new Patch(this);
 
-                let bl = buffers.vec3[0].set(-1 * aspectRatio * 0.7, -1 * 0.7, 0);
-                let br = buffers.vec3[1].set(+1 * aspectRatio * 0.7, -1 * 0.7, 0);
-                let tl = buffers.vec3[2].set(-1 * aspectRatio * 0.7, +1 * 0.7, 0);
-                let tr = buffers.vec3[3].set(+1 * aspectRatio * 0.7, +1 * 0.7, 0);
-
-
-                this.patch = new Patch(this);
-                this.patch.initFromCorners(tl, tr, bl, br);
-
-            }
 
             // Selected control points
             this.selectedControlPoints = [];
@@ -1500,9 +1523,15 @@
             window.addEventListener("keydown", this.keydown.bind(this));
             window.addEventListener("keyup", this.keyup.bind(this));
 
-            // Create a first entry in history
-            this.saveHistory();
+        }
 
+        /**
+         * Creates the history and initializes it with the current patch data
+         * @private
+         */
+        createHistory() {
+            this.history = new History();
+            this.saveHistory();
         }
 
         /**
@@ -1719,8 +1748,6 @@
         loop() {
             window.requestAnimationFrame(this.loop.bind(this));
 
-
-
             this.updateProjectionMatrix();
             this.updatePatch();
             this.updateMeshes();
@@ -1756,6 +1783,19 @@
                 }
             }
 
+            // Update background plane 
+            if (this.meshes.backgroundPlane) {
+                let geom = this.meshes.backgroundPlane.geometry;
+
+                geom.vertices[0].set(0, this.backgroundHeight, -0.1);
+                geom.vertices[1].set(this.backgroundWidth, this.backgroundHeight, -0.1);
+                geom.vertices[2].set(0, 0, -0.1);
+                geom.vertices[3].set(this.backgroundWidth, 0, -0.1);
+
+                geom.verticesNeedsUpdate = true;
+
+            }
+
 
             // Update meshes
             {
@@ -1788,11 +1828,12 @@
          */
         updateProjectionMatrix() {
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
+            let a = w / h;
             let z = 1 / this.options.zoom;
-            this.camera.left = -w / h * z + this.cameraOrigin.x;
-            this.camera.right = w / h * z + this.cameraOrigin.x;
-            this.camera.bottom = -z + this.cameraOrigin.y;
-            this.camera.top = z + this.cameraOrigin.y;
+            this.camera.left = -a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
+            this.camera.right = a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
+            this.camera.bottom = -z * this.backgroundHeight / 2 + this.cameraOrigin.y;
+            this.camera.top = z * this.backgroundHeight / 2 + this.cameraOrigin.y;
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();

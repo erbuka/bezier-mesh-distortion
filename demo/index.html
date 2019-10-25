@@ -21,23 +21,6 @@
 
         window.addEventListener("load", function () {
 
-            let options = {
-                container: "#demo",
-                aspectRatio: 1,
-                gridSize: 20,
-                zoom: 1,
-
-                gridColor: "#666666",
-
-                primaryColor: "#0088ff",
-                secondaryColor: "#ffcc00",
-
-                mode: "bezier",
-
-                texture: "coca-cola.jpg",
-                background: "bottle.jpg",
-            };
-
             let download = function (name, text) {
                 let element = document.createElement('a');
                 element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
@@ -51,17 +34,31 @@
                 document.body.removeChild(element);
             }
 
+            let savedInstance = null;
+
             let functions = {
                 alignLeft: () => projection.alignSelectedPoints("left"),
                 alignRight: () => projection.alignSelectedPoints("right"),
                 alignTop: () => projection.alignSelectedPoints("top"),
                 alignBottom: () => projection.alignSelectedPoints("bottom"),
+                save: () => savedInstance = projection.save(),
+                restore: () => {
+                    if (savedInstance) {
+                        projection.restore(savedInstance);
+                    }
+                },
                 exportGLTF: () => projection.export().then(data => download("export.gltf", JSON.stringify(data)))
             }
 
-            let projection = new bm.BezierMeshProjection(options);
+            let projection = new bm.BezierMeshProjection({
+                container: "#demo",
+                texture: "coca-cola.jpg",
+                background: "bottle.jpg",
+            });
+
+            let options = projection.options;
             let gui = new dat.GUI();
-            let changeHandler = () => projection.reset(options);
+            let changeHandler = () => projection.configure(options);
 
             let optionsFolder = gui.addFolder("Options");
 
@@ -102,7 +99,6 @@
             window.addEventListener("keyup", (evt) => {
                 if (evt.code === "Space") {
                     projection.selectedTool = previousTool;
-                    console.log(previousTool);
                 }
             });
 

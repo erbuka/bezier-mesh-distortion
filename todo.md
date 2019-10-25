@@ -19,3 +19,4 @@
 - Subdivision: 6
 - Tools: 2 
 - Optimize code for speed: 1
+- Rework background and patch size.: 0.5
