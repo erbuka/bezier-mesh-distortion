@@ -474,7 +474,6 @@
             this.ownerProjection = ownerProjection;
             this.domElement = document.createElement("div");
             this.parent = null;
-            this.children = [];
             this.mirrorMode = false;
             this.create();
         }
@@ -488,16 +487,6 @@
             return new ControlPoint(ownerProjection, point.x, point.y, point.z);
         }
 
-        /**
-         * Appends the given control points as children of this control point
-         * @param  {...ControlPoint} children The children to add
-         */
-        addChildren(...children) {
-            for (let c of children)
-                if (!this.children.includes(c))
-                    this.children.push(c);
-            children.forEach(c => c.parent = this);
-        }
 
         /**
          * Sets this control point to mirror another control point
@@ -515,20 +504,6 @@
             }
         }
 
-        /*
-        move(x, y) {
-            
-            let offset = this.ownerProjection.screenToWorld(x, y).sub(this);
-
-            this.add(offset);
-
-            //this.children.forEach(c => c.add(offset));
-
-            if (this.mirrorPoint && this.mirrorMode) {
-                let offset = buffers.vec3[0].copy(this.mirrorPoint.reference).sub(this);
-                this.mirrorPoint.other.copy(this.mirrorPoint.reference).add(offset);
-            }
-        }*/
 
         /**
          * Moves this control point by the given offset
@@ -670,8 +645,6 @@
                 let cp = p.controlPoints;
                 cp.forEach(cp => {
                     cp.mirror(null, null);
-                    cp.children.forEach(c => c.parent = null);
-                    cp.children = [];
                 });
             }
 
@@ -683,11 +656,6 @@
                     let bottom = this.bezierPatches.get(i - 1, j);
                     let top = this.bezierPatches.get(i + 1, j);
                     let cp = cur.controlPoints;
-
-                    cp[0].addChildren(cp[1], cp[4], cp[5]);
-                    cp[3].addChildren(cp[2], cp[7], cp[6]);
-                    cp[12].addChildren(cp[8], cp[13], cp[9]);
-                    cp[15].addChildren(cp[14], cp[11], cp[10]);
 
                     if (left) {
                         cp[1].mirror(left.controlPoints[2], cp[0]);
@@ -776,7 +744,6 @@
                         x: point.x,
                         y: point.y,
                         z: point.z,
-                        children: point.children.map(c => ref(c)),
                         mirrorPoint: point.mirrorPoint ?
                             { other: ref(point.mirrorPoint.other), reference: ref(point.mirrorPoint.reference) } :
                             null
@@ -813,7 +780,6 @@
 
             for (let i = 0; i < controlPoints.length; i++) {
                 let cpData = savedInstance.controlPoints[i];
-                controlPoints[i].addChildren(...cpData.children.map(i => controlPoints[i]));
                 if (cpData.mirrorPoint) {
                     controlPoints[i].mirror(
                         controlPoints[cpData.mirrorPoint.other],
