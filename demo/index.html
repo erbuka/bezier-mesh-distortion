@@ -67,8 +67,9 @@
             optionsFolder.add(options, "mode", ["bezier", "linear"]).onChange(changeHandler).listen();
             optionsFolder.add(options, "texture", ["grid.jpg", "jd.png", "starbucks.png", "coca-cola.jpg"]).onChange(changeHandler).listen();
             optionsFolder.add(options, "background", ["bottle.jpg", "mug.jpg"]).onChange(changeHandler).listen();
-            optionsFolder.add(options, "gridSize", 1, 50, 1).onChange(changeHandler).listen();
-            optionsFolder.add(options, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
+            optionsFolder.add(options, "gridWidth", 1, 50, 1).onChange(changeHandler).listen();
+            optionsFolder.add(options, "gridHeight", 1, 50, 1).onChange(changeHandler).listen();
+            optionsFolder.add(projection, "zoom", 0.1, 2, 0.01).onChange(changeHandler).listen();
             optionsFolder.addColor(options, "gridColor").onChange(changeHandler).listen();
             optionsFolder.addColor(options, "primaryColor").onChange(changeHandler).listen();
             optionsFolder.addColor(options, "secondaryColor").onChange(changeHandler).listen();
@@ -85,7 +86,7 @@
 
             window.addEventListener("mousewheel", (evt) => {
                 let s = Math.sign(evt.deltaY);
-                options.zoom *= (1 - s * 0.05);
+                projection.zoom *= (1 - s * 0.05);
                 changeHandler();
             });
 

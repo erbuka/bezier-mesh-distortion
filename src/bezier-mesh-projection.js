@@ -1134,8 +1134,6 @@
             cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
             cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
             */
-
-            cp.forEach(c => c.update());
         }
 
         /**
@@ -1152,8 +1150,8 @@
      * @constructor
      * @param {object} options
      * @param {string} options.container The selector for the canvas container
-     * @param {number} [options.gridSize] The number of subdivisions.
-     * @param {string} [options.zoom] Camera zoom.
+     * @param {number} [options.gridWidth] The number of subdivisions in the x-direction
+     * @param {number} [options.gridHeight] The number of subdivisions in the y-direction
      * @param {string} [options.gridColor] Color used for grid lines and grid points.
      * @param {string} [options.primaryColor] Primary UI color
      * @param {string} [options.secondaryColor] Secondary UI color
@@ -1166,8 +1164,8 @@
 
             this.options = {
                 container: null,
-                gridSize: 20,
-                zoom: 0.9,
+                gridWidth: 20,
+                gridHeight: 20,
 
                 gridColor: "#666666",
 
@@ -1186,6 +1184,23 @@
         }
 
 
+        set zoom(value) {
+            let prevMouseWorld = this.mouse.world.clone();
+
+            this.zoomValue = value;
+            this.updateProjectionMatrix();
+
+            prevMouseWorld.sub(this.screenToWorld(this.mouse.position.x, this.mouse.position.y))
+
+            this.cameraOrigin.add(prevMouseWorld);
+
+        }
+
+        get zoom() {
+            return this.zoomValue;
+        }
+
+
         /**
          * Saves the current patch so it can be restored later
          * @returns {object} The current patch
@@ -1197,7 +1212,8 @@
                 options: {
                     texture: this.options.texture,
                     backgorund: this.options.background,
-                    gridSize: this.options.gridSize,
+                    gridWidth: this.options.gridWidth,
+                    gridHeight: this.options.gridHeight,
                     mode: this.options.mode
                 },
                 patchData: this.patch.save()
@@ -1240,6 +1256,7 @@
             });
         }
 
+
         /**
          * Resets the patch and the background plane
          * @param {number} patchWidth Patch width in pixels
@@ -1250,6 +1267,8 @@
         reset(patchWidth, patchHeight, backgroundWidth, backgroundHeight) {
             this.backgroundWidth = backgroundWidth;
             this.backgroundHeight = backgroundHeight;
+            this.patchWidth = patchWidth;
+            this.patchHeight = patchHeight;
 
             // Create initial patch
             {
@@ -1261,6 +1280,7 @@
 
                 this.patch.initFromCorners(tl, tr, bl, br);
             }
+
 
             // Reset the camera
             this.cameraOrigin.set(backgroundWidth / 2, backgroundHeight / 2);
@@ -1274,8 +1294,8 @@
         /**
          * Change the current configuration.
          * @param {object} options
-         * @param {number} [options.gridSize] The number of subdivisions.
-         * @param {string} [options.zoom] Camera zoom.
+         * @param {number} [options.gridWidth] The number of subdivisions in the x-direction
+         * @param {number} [options.gridHeight] The number of subdivisions in the y-direction
          * @param {string} [options.gridColor] Color used for grid lines and grid points.
          * @param {string} [options.primaryColor] Primary UI color
          * @param {string} [options.secondaryColor] Secondary UI color
@@ -1287,9 +1307,10 @@
 
             Object.assign(this.options, options);
 
-            const gs = this.options.gridSize;
-            const gs1 = gs + 1;
-            const n = gs1 * gs1;
+
+            let gw = this.options.gridWidth + 1;
+            let gh = this.options.gridHeight + 1;
+
             this.meshes = {};
 
             // Initialize three.js scene
@@ -1298,7 +1319,7 @@
             this.camera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1, 1);
 
             // Init grid points buffer;
-            this.gridPoints = new Array((gs + 1) * (gs + 1));
+            this.gridPoints = new Array(gw * gh);
             for (let i = 0; i < this.gridPoints.length; i++)
                 this.gridPoints[i] = new THREE.Vector3();
 
@@ -1324,12 +1345,12 @@
                 // Indices
                 let indices = [];
 
-                for (let y = 0; y < gs; y++) {
-                    for (let x = 0; x < gs; x++) {
-                        let a = y * gs1 + x;
-                        let b = y * gs1 + x + 1;
-                        let c = (y + 1) * gs1 + x;
-                        let d = (y + 1) * gs1 + x + 1;
+                for (let y = 0; y < gh - 1; y++) {
+                    for (let x = 0; x < gw - 1; x++) {
+                        let a = y * gw + x;
+                        let b = y * gw + x + 1;
+                        let c = (y + 1) * gw + x;
+                        let d = (y + 1) * gw + x + 1;
 
                         indices.push(a, b, c);
                         indices.push(b, d, c);
@@ -1339,21 +1360,21 @@
 
                 // Normals
                 let normals = [];
-                for (let i = 0; i < n; i++)
+                for (let i = 0; i < gw * gh; i++)
                     normals.push(0, 0, 1);
 
                 // UVs
                 let uvs = [];
 
-                for (let y = 0; y < gs1; y++) {
-                    for (let x = 0; x < gs1; x++) {
-                        uvs.push(x / gs, y / gs);
+                for (let y = 0; y < gh; y++) {
+                    for (let x = 0; x < gw; x++) {
+                        uvs.push(x / (gw - 1), y / (gh - 1));
                     }
                 }
 
                 let planeGeom = new THREE.BufferGeometry();
 
-                planeGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+                planeGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(gw * gh * 3), 3));
                 planeGeom.addAttribute("normal", new THREE.Float32BufferAttribute(normals, 3));
                 planeGeom.addAttribute("uv", new THREE.Float32BufferAttribute(uvs, 2));
                 planeGeom.setIndex(indices);
@@ -1379,21 +1400,23 @@
             {
                 let indices = [];
 
-                for (let k = 0; k < gs + 1; k++) {
-                    for (let m = 0; m < gs; m++) {
-                        // Horizonal line 
-                        // k => row, m => column
-                        indices.push(k * gs1 + m, k * gs1 + m + 1);
+                // Horizontal lines
+                for (let y = 0; y < gh; y++) {
+                    for (let x = 0; x < gw - 1; x++) {
+                        indices.push(y * gw + x, y * gw + x + 1);
+                    }
+                }
 
-                        // Vertical line
-                        // k => column, m => row
-                        indices.push(m * gs1 + k, (m + 1) * gs1 + k);
+                // Vertical lines
+                for (let x = 0; x < gw; x++) {
+                    for (let y = 0; y < gh - 1; y++) {
+                        indices.push(y * gw + x, (y + 1) * gw + x);
                     }
                 }
 
                 let linesGeom = new THREE.BufferGeometry();
 
-                linesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+                linesGeom.addAttribute("position", new THREE.BufferAttribute(new Float32Array(gw * gh * 3), 3));
                 linesGeom.setIndex(indices);
 
                 this.meshes.gridLines = new THREE.LineSegments(linesGeom, new THREE.LineBasicMaterial({
@@ -1428,6 +1451,9 @@
 
             // Selected tool
             this.selectedTool = Tools.Arrow;
+
+            // Zoom
+            this.zoomValue = 1;
 
             // Init mouse info
             this.mouse = {
@@ -1627,13 +1653,15 @@
                 setShadow();
 
                 if (this.selectedTool === Tools.VerticalCut || this.selectedTool === Tools.HorizontalCut) {
+                    let horizontal = this.selectedTool === Tools.HorizontalCut;
                     let uv = this.intersectMesh(this.mouse.ndc);
                     if (uv) {
                         ctx.beginPath();
-                        for (let i = 0; i <= this.options.gridSize; i++) {
+
+                        for (let i = 0; i <= (horizontal ? this.options.gridWidth : this.options.gridHeight); i++) {
                             let point = this.patch.compute(
-                                this.selectedTool == Tools.HorizontalCut ? i / this.options.gridSize : uv.x,
-                                this.selectedTool == Tools.HorizontalCut ? uv.y : i / this.options.gridSize,
+                                horizontal ? i / this.options.gridWidth : uv.x,
+                                horizontal ? uv.y : i / this.options.gridHeight,
                                 this.options.mode
                             );
 
@@ -1737,14 +1765,16 @@
          * @private
          */
         updateMeshes() {
-            const gs = this.options.gridSize;
+
+            const gw = this.options.gridWidth + 1;
+            const gh = this.options.gridHeight + 1;
 
             // Compute grid points
             {
-                for (let x = 0; x < gs + 1; x++) {
-                    for (let y = 0; y < gs + 1; y++) {
-                        let point = this.patch.compute(x / gs, y / gs, this.options.mode);
-                        this.gridPoints[y * (gs + 1) + x].copy(point);
+                for (let x = 0; x < gw; x++) {
+                    for (let y = 0; y < gh; y++) {
+                        let point = this.patch.compute(x / (gw - 1), y / (gh - 1), this.options.mode);
+                        this.gridPoints[y * gw + x].copy(point);
                     }
                 }
             }
@@ -1768,9 +1798,9 @@
                 let linesPositions = this.meshes.gridLines.geometry.attributes.position;
                 let planePositions = this.meshes.plane.geometry.attributes.position;
 
-                for (let x = 0; x < gs + 1; x++) {
-                    for (let y = 0; y < gs + 1; y++) {
-                        let idx = y * (gs + 1) + x;
+                for (let x = 0; x < gw; x++) {
+                    for (let y = 0; y < gh; y++) {
+                        let idx = y * gw + x;
                         let bufIdx = idx * 3;
 
                         linesPositions.array[bufIdx + 0] = planePositions.array[bufIdx + 0] = this.gridPoints[idx].x;
@@ -1795,7 +1825,7 @@
         updateProjectionMatrix() {
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let a = w / h;
-            let z = 1 / this.options.zoom;
+            let z = 1 / this.zoomValue;
             this.camera.left = -a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
             this.camera.right = a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
             this.camera.bottom = -z * this.backgroundHeight / 2 + this.cameraOrigin.y;
