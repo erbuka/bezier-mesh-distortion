@@ -461,6 +461,7 @@
      * A control point with a corresponding dom element.
      */
     class ControlPoint extends THREE.Vector3 {
+
         /**
          * Creates a new control point and adds his dom element to the UI
          * @constructor
@@ -477,6 +478,7 @@
             this.mirrorMode = false;
             this.create();
         }
+
         /**
          * Helper function to create a control point from a THREE.Vector3
          * @param {BezierMeshProjection} ownerProjection An instance of BezierMeshProjection containing the new control point
@@ -485,6 +487,14 @@
          */
         static fromVector(ownerProjection, point) {
             return new ControlPoint(ownerProjection, point.x, point.y, point.z);
+        }
+
+        set visible(v) {
+            this.domElement.style.display = v ? "block" : "none";
+        }
+
+        get visible() {
+            return this.domElement.style.display === "none";
         }
 
 
@@ -532,7 +542,6 @@
             this.domElement.style.left = (screenPos.x - this.ownerProjection.computedControlPointWidth / 2) + "px";
             this.domElement.style.top = (screenPos.y - this.ownerProjection.computedControlPointHeight / 2) + "px";
             this.domElement.style.backgroundColor = color;
-            this.domElement.style.display = this.ownerProjection.previewMode ? "none" : null;
         }
 
         /**
@@ -545,6 +554,8 @@
             this.domElement.addEventListener("mouseup", (evt) => { evt.bmControlPoint = this; })
             this.ownerProjection.container.appendChild(this.domElement);
         }
+
+
         /**
          * Detaches the DOM element associated with this control point
          */
@@ -696,9 +707,6 @@
                         cp[2].mirror(cp[7], cp[3]);
                         cp[7].mirror(cp[2], cp[3]);
                     }
-
-
-
                 }
             }
 
@@ -1063,7 +1071,6 @@
 
             this.relinkControlPoints();
 
-
         }
 
     }
@@ -1126,14 +1133,50 @@
         update() {
             // Compute middle control points
             let cp = this.controlPoints;
+            const mode = this.ownerProjection.options.mode;
+
+            cp.forEach(p => p.visible = false);
+            
+            if (!this.ownerProjection.previewMode) {
+                if (mode === "linear") {
+                    cp[0].visible = true;
+                    cp[3].visible = true;
+                    cp[12].visible = true;
+                    cp[15].visible = true;
+
+
+                    // Autocompute outline CPS
+
+                    cp[1].copy(cp[0]).lerp(cp[3], 1/3);
+                    cp[2].copy(cp[0]).lerp(cp[3], 2/3);
+                    
+                    cp[4].copy(cp[0]).lerp(cp[12], 1/3);
+                    cp[8].copy(cp[0]).lerp(cp[12], 2/3);
+                    
+                    cp[13].copy(cp[12]).lerp(cp[15], 1/3);
+                    cp[14].copy(cp[12]).lerp(cp[15], 2/3);
+
+                    cp[7].copy(cp[3]).lerp(cp[15], 1/3);
+                    cp[11].copy(cp[3]).lerp(cp[15], 2/3);
+
+                    // Auto compute mid points
+
+                    cp[5].copy(cp[4]).lerp(cp[7], 1/3);
+                    cp[6].copy(cp[4]).lerp(cp[7], 2/3);
+                    cp[9].copy(cp[8]).lerp(cp[11], 1/3);
+                    cp[10].copy(cp[8]).lerp(cp[11], 2/3);
+
+                } else if (mode === "bezier") { // bezier
+                    cp.forEach(p => p.visible = true);
+                } else {
+                    throw new Error("Invalid patch mode: " + this.ownerProjection.options.mode);
+                }
+            }
+            
+
             cp.forEach(p => p.update());
 
-            /*
-            cp[5].copy(cp[4]).add(cp[1]).sub(cp[0]);
-            cp[6].copy(cp[2]).add(cp[7]).sub(cp[3]);
-            cp[9].copy(cp[8]).add(cp[13]).sub(cp[12]);
-            cp[10].copy(cp[14]).add(cp[11]).sub(cp[15]);
-            */
+
         }
 
         /**
@@ -1578,11 +1621,15 @@
 
                 for (let patch of this.patch.bezierPatches) {
                     let cps = patch.controlPoints;
-                    let vertices = [
-                        cps[0], cps[1], cps[2], cps[3],
-                        cps[7], cps[11], cps[15], cps[14],
-                        cps[13], cps[12], cps[8], cps[4]
-                    ]
+                    let vertices = this.options.mode === "bezier" ?
+                        [
+                            cps[0], cps[1], cps[2], cps[3],
+                            cps[7], cps[11], cps[15], cps[14],
+                            cps[13], cps[12], cps[8], cps[4]
+                        ] :
+                        [
+                            cps[0], cps[3], cps[15], cps[12]
+                        ];
 
                     ctx.beginPath();
                     for (let i = 0; i < vertices.length; i++) {
@@ -1600,48 +1647,50 @@
 
 
             // Draw patches interior
-            ctx.save();
-            {
-                let u0 = new THREE.Vector2();
-                let u1 = new THREE.Vector2();
-                let v0 = new THREE.Vector2();
-                let v1 = new THREE.Vector2();
+            if (this.options.mode === "bezier") {
+                ctx.save();
+                {
+                    let u0 = new THREE.Vector2();
+                    let u1 = new THREE.Vector2();
+                    let v0 = new THREE.Vector2();
+                    let v1 = new THREE.Vector2();
 
-                ctx.lineWidth = 1;
-                ctx.globalAlpha = 0.5;
-                ctx.strokeStyle = this.options.primaryColor;
+                    ctx.lineWidth = 1;
+                    ctx.globalAlpha = 0.5;
+                    ctx.strokeStyle = this.options.primaryColor;
 
-                for (let patch of this.patch.bezierPatches) {
+                    for (let patch of this.patch.bezierPatches) {
 
-                    let cps = patch.controlPoints;
+                        let cps = patch.controlPoints;
 
-                    for (let i = 0; i < 3; i++) {
-                        for (let j = 1; j < 3; j++) {
-                            // Horizontal
-                            u0.copy(this.worldToScreen(cps[j * 4 + i]));
-                            u1.copy(this.worldToScreen(cps[j * 4 + i + 1]));
+                        for (let i = 0; i < 3; i++) {
+                            for (let j = 1; j < 3; j++) {
+                                // Horizontal
+                                u0.copy(this.worldToScreen(cps[j * 4 + i]));
+                                u1.copy(this.worldToScreen(cps[j * 4 + i + 1]));
 
-                            ctx.beginPath();
-                            ctx.moveTo(u0.x, u0.y)
-                            ctx.lineTo(u1.x, u1.y);
-                            ctx.stroke();
+                                ctx.beginPath();
+                                ctx.moveTo(u0.x, u0.y)
+                                ctx.lineTo(u1.x, u1.y);
+                                ctx.stroke();
 
-                            // Vertical
-                            v0.copy(this.worldToScreen(cps[i * 4 + j]));
-                            v1.copy(this.worldToScreen(cps[(i + 1) * 4 + j]));
+                                // Vertical
+                                v0.copy(this.worldToScreen(cps[i * 4 + j]));
+                                v1.copy(this.worldToScreen(cps[(i + 1) * 4 + j]));
 
-                            ctx.beginPath();
-                            ctx.moveTo(v0.x, v0.y)
-                            ctx.lineTo(v1.x, v1.y);
-                            ctx.stroke();
+                                ctx.beginPath();
+                                ctx.moveTo(v0.x, v0.y)
+                                ctx.lineTo(v1.x, v1.y);
+                                ctx.stroke();
 
+                            }
                         }
+
                     }
 
                 }
-
+                ctx.restore();
             }
-            ctx.restore();
 
             // Horizontal or vertical cut
             ctx.save();

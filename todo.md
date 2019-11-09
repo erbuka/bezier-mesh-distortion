@@ -14,15 +14,15 @@
 - [ ] Optimize for speed iteration 2
 - [ ] Update documentation
 - [X] ~~*Inner grid always squared*~~ [2019-11-07]
-- [ ] when the component is in linear mode, only 4 corner points should be visible ( center control points and bezier handles could be hidden)
-- [ ] when you switch from linear to bezier mode, the grid handles should align/reset to „default state“
+- [X] ~~*when the component is in linear mode, only 4 corner points should be visible ( center control points and bezier handles could be hidden)*~~ [2019-11-09]
+- [X] ~~*when you switch from linear to bezier mode, the grid handles should align/reset to „default state“*~~ [2019-11-09]
 - [ ] could you please add two additional handles to the linear mode like this - one that would move the whole patch around while the other would rotate the patch
 - [X] ~~*can we change the zooming behavior, so the component zooms to the cursor position and not the canvas center (for example like the google maps)*~~ [2019-11-07]
 - [ ] could we set the pan boundaries
+- [ ] Sensitivity of inner grid points
 
 
 ## Hours
-- Subdivision: 6
-- Tools: 2 
-- Optimize code for speed: 1
-- Rework background and patch size.: 0.5
+- Customize inner grid: 0.75
+- New linear/bezier switch behavior: 1
+- New zooming behavior: 0.25
