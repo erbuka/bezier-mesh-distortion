@@ -1114,6 +1114,7 @@
             } else if (mode === "bezier") {
                 let pRes = buffers.vec3[0].set(0, 0, 0);
                 let p0 = buffers.vec3[1];
+
                 for (let y = 0; y < 4; y++) {
                     for (let x = 0; x < 4; x++) {
                         let b = Util.computeBernsteinBasis3(x, u) * Util.computeBernsteinBasis3(y, v);
@@ -1136,7 +1137,7 @@
             const mode = this.ownerProjection.options.mode;
 
             cp.forEach(p => p.visible = false);
-            
+
             if (!this.ownerProjection.previewMode) {
                 if (mode === "linear") {
                     cp[0].visible = true;
@@ -1147,24 +1148,26 @@
 
                     // Autocompute outline CPS
 
-                    cp[1].copy(cp[0]).lerp(cp[3], 1/3);
-                    cp[2].copy(cp[0]).lerp(cp[3], 2/3);
-                    
-                    cp[4].copy(cp[0]).lerp(cp[12], 1/3);
-                    cp[8].copy(cp[0]).lerp(cp[12], 2/3);
-                    
-                    cp[13].copy(cp[12]).lerp(cp[15], 1/3);
-                    cp[14].copy(cp[12]).lerp(cp[15], 2/3);
+                    cp[1].copy(cp[0]).lerp(cp[3], 1 / 3);
+                    cp[2].copy(cp[0]).lerp(cp[3], 2 / 3);
 
-                    cp[7].copy(cp[3]).lerp(cp[15], 1/3);
-                    cp[11].copy(cp[3]).lerp(cp[15], 2/3);
+                    cp[4].copy(cp[0]).lerp(cp[12], 1 / 3);
+                    cp[8].copy(cp[0]).lerp(cp[12], 2 / 3);
+
+                    cp[13].copy(cp[12]).lerp(cp[15], 1 / 3);
+                    cp[14].copy(cp[12]).lerp(cp[15], 2 / 3);
+
+                    cp[7].copy(cp[3]).lerp(cp[15], 1 / 3);
+                    cp[11].copy(cp[3]).lerp(cp[15], 2 / 3);
+
+
 
                     // Auto compute mid points
-
-                    cp[5].copy(cp[4]).lerp(cp[7], 1/3);
-                    cp[6].copy(cp[4]).lerp(cp[7], 2/3);
-                    cp[9].copy(cp[8]).lerp(cp[11], 1/3);
-                    cp[10].copy(cp[8]).lerp(cp[11], 2/3);
+                    
+                    cp[5].copy(cp[4]).lerp(cp[7], 1 / 3);
+                    cp[6].copy(cp[4]).lerp(cp[7], 2 / 3);
+                    cp[9].copy(cp[8]).lerp(cp[11], 1 / 3);
+                    cp[10].copy(cp[8]).lerp(cp[11], 2 / 3);
 
                 } else if (mode === "bezier") { // bezier
                     cp.forEach(p => p.visible = true);
@@ -1172,7 +1175,7 @@
                     throw new Error("Invalid patch mode: " + this.ownerProjection.options.mode);
                 }
             }
-            
+
 
             cp.forEach(p => p.update());
 
