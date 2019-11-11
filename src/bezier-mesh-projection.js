@@ -1163,7 +1163,7 @@
 
 
                     // Auto compute mid points
-                    
+
                     cp[5].copy(cp[4]).lerp(cp[7], 1 / 3);
                     cp[6].copy(cp[4]).lerp(cp[7], 2 / 3);
                     cp[9].copy(cp[8]).lerp(cp[11], 1 / 3);
@@ -1329,7 +1329,7 @@
 
 
             // Reset the camera
-            this.cameraOrigin.set(backgroundWidth / 2, backgroundHeight / 2);
+            this.cameraOrigin.set(0, 0);
 
             // Reset history and create initial state
             this.createHistory();
@@ -1878,14 +1878,15 @@
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let a = w / h;
             let z = 1 / this.zoomValue;
-            this.camera.left = -a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
-            this.camera.right = a * z * this.backgroundHeight / 2 + this.cameraOrigin.x;
-            this.camera.bottom = -z * this.backgroundHeight / 2 + this.cameraOrigin.y;
-            this.camera.top = z * this.backgroundHeight / 2 + this.cameraOrigin.y;
+            this.camera.left = this.cameraOrigin.x;
+            this.camera.right = this.cameraOrigin.x + a * z * this.backgroundHeight;
+            this.camera.bottom = this.cameraOrigin.y;
+            this.camera.top = + this.cameraOrigin.y + z * this.backgroundHeight;
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();
         }
+
 
         /**
          * Undo the last command (goes back in history)
