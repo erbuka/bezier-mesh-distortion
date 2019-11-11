@@ -1877,11 +1877,53 @@
         updateProjectionMatrix() {
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let a = w / h;
+
+            if (this.zoomValue < 1) {
+                this.zoomValue = 1;
+            }
+
             let z = 1 / this.zoomValue;
-            this.camera.left = this.cameraOrigin.x;
-            this.camera.right = this.cameraOrigin.x + a * z * this.backgroundHeight;
-            this.camera.bottom = this.cameraOrigin.y;
-            this.camera.top = + this.cameraOrigin.y + z * this.backgroundHeight;
+
+            let minY = -this.backgroundHeight;
+            let maxY = this.backgroundHeight * 2;
+
+            let s = (3 * this.backgroundHeight * a - this.backgroundWidth) / 2;
+
+            let minX = -s;
+            let maxX = s + this.backgroundWidth;
+
+            let left = this.cameraOrigin.x;
+            let right = this.cameraOrigin.x + a * z * (maxY - minY);
+            let bottom = this.cameraOrigin.y;
+            let top = + this.cameraOrigin.y + z * (maxY - minY);
+
+            let offsetX = 0, offsetY = 0;
+            if (left < minX) {
+                offsetX = minX - left;
+            } else if (right > maxX) {
+                offsetX = maxX - right;
+            }
+
+            if (bottom < minY) {
+                offsetY = minY - bottom;
+            } else if (top > maxY) {
+                offsetY = maxY - top;
+            }
+
+            left += offsetX;
+            right += offsetX;
+            top += offsetY;
+            bottom += offsetY;
+
+            this.cameraOrigin.x = left;
+            this.cameraOrigin.y = bottom;
+
+
+            this.camera.left = left;
+            this.camera.right = right;
+            this.camera.bottom = bottom;
+            this.camera.top = top;
+
             this.camera.near = -1;
             this.camera.far = 1;
             this.camera.updateProjectionMatrix();

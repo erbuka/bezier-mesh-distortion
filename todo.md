@@ -18,7 +18,7 @@
 - [X] ~~*when you switch from linear to bezier mode, the grid handles should align/reset to „default state“*~~ [2019-11-09]
 - [ ] could you please add two additional handles to the linear mode like this - one that would move the whole patch around while the other would rotate the patch
 - [X] ~~*can we change the zooming behavior, so the component zooms to the cursor position and not the canvas center (for example like the google maps)*~~ [2019-11-07]
-- [ ] could we set the pan boundaries
+- [X] ~~*could we set the pan boundaries*~~ [2019-11-11]
 - [ ] Sensitivity of inner grid points
 
 
