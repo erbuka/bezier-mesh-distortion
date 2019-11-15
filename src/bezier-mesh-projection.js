@@ -22,7 +22,8 @@
         Arrow: "Arrow",
         HorizontalCut: "Horizontal Cut",
         VerticalCut: "Vertical Cut",
-        Pan: "Pan"
+        Pan: "Pan",
+        Transform: "Transform"
     }
 
     /**
@@ -605,29 +606,32 @@
          */
         initFromCorners(topLeft, topRight, bottomLeft, bottomRight) {
 
-            let cp = new Array(16);
+            let cp = Util.makeArray(16, ControlPoint, this.ownerProjection);
 
-            let tl = cp[12] = ControlPoint.fromVector(this.ownerProjection, topLeft);
-            let tr = cp[15] = ControlPoint.fromVector(this.ownerProjection, topRight);
-            let bl = cp[0] = ControlPoint.fromVector(this.ownerProjection, bottomLeft);
-            let br = cp[3] = ControlPoint.fromVector(this.ownerProjection, bottomRight);
+            cp[12].copy(topLeft);
+            cp[15].copy(topRight)
+            cp[0].copy(bottomLeft)
+            cp[3].copy(bottomRight);
 
-            cp[1] = bl.clone().lerp(br, 1 / 3);
-            cp[2] = bl.clone().lerp(br, 2 / 3);
+            // Autocompute outline CPS
+            cp[1].copy(cp[0]).lerp(cp[3], 1 / 3);
+            cp[2].copy(cp[0]).lerp(cp[3], 2 / 3);
 
-            cp[13] = tl.clone().lerp(tr, 1 / 3);
-            cp[14] = tl.clone().lerp(tr, 2 / 3);
+            cp[4].copy(cp[0]).lerp(cp[12], 1 / 3);
+            cp[8].copy(cp[0]).lerp(cp[12], 2 / 3);
 
-            cp[4] = bl.clone().lerp(tl, 1 / 3);
-            cp[8] = bl.clone().lerp(tl, 2 / 3);
+            cp[13].copy(cp[12]).lerp(cp[15], 1 / 3);
+            cp[14].copy(cp[12]).lerp(cp[15], 2 / 3);
 
-            cp[7] = br.clone().lerp(tr, 1 / 3);
-            cp[11] = br.clone().lerp(tr, 2 / 3);
+            cp[7].copy(cp[3]).lerp(cp[15], 1 / 3);
+            cp[11].copy(cp[3]).lerp(cp[15], 2 / 3);
 
-            cp[5] = cp[0].clone().lerp(cp[15], 1 / 3);
-            cp[10] = cp[0].clone().lerp(cp[15], 2 / 3);
-            cp[9] = cp[12].clone().lerp(cp[3], 1 / 3);
-            cp[6] = cp[12].clone().lerp(cp[3], 2 / 3);
+
+            // Auto compute mid points
+            cp[5].copy(cp[4]).lerp(cp[7], 1 / 3);
+            cp[6].copy(cp[4]).lerp(cp[7], 2 / 3);
+            cp[9].copy(cp[8]).lerp(cp[11], 1 / 3);
+            cp[10].copy(cp[8]).lerp(cp[11], 2 / 3);
 
             this.dispose();
 
@@ -1224,7 +1228,7 @@
             }
 
             this.initialize(options.container);
-            this.reset(640, 640, 1024, 768);
+            this.reset();
             this.configure(options);
             this.loop();
         }
@@ -1257,7 +1261,7 @@
                 backgroundHeight: this.backgroundHeight,
                 options: {
                     texture: this.options.texture,
-                    backgorund: this.options.background,
+                    background: this.options.background,
                     gridWidth: this.options.gridWidth,
                     gridHeight: this.options.gridHeight,
                     mode: this.options.mode
@@ -1271,7 +1275,10 @@
          * @param {object} savedInstance The patch to be restored
          */
         restore(savedInstance) {
-            this.reset(1, 1, savedInstance.backgroundWidth, savedInstance.backgroundHeight);
+            this.reset({ 
+                backgroundWidth: savedInstance.backgroundWidth, 
+                backgroundHeight: savedInstance.backgroundHeight
+            });
             this.patch.restore(savedInstance.patchData);
             this.configure(savedInstance.options);
             this.createHistory();
@@ -1304,32 +1311,79 @@
 
 
         /**
-         * Resets the patch and the background plane
-         * @param {number} patchWidth Patch width in pixels
-         * @param {number} patchHeight Patch height in pixels
-         * @param {number} backgroundWidth Background width in pixels
-         * @param {number} backgroundHeight Background height in pixels
+         * Resets the patch and the background plane. When options are not are supplied, default values
+         * will be applied. If the 4 patch corners are given, the supplied patch width and height
+         * will be ignored and the patch will be positionted with the given corners; otherwise, 
+         * a rectangular patch will be created with the supplied width and height, and it will be 
+         * centered over the background
+         * @param {object} [options] Reset options
+         * @param {number} [options.backgroundWidth] Background width in pixels
+         * @param {number} [options.backgroundHeight] Background height in pixels
+         * @param {number} [options.patchWidth] Patch width in pixels
+         * @param {number} [options.patchHeight] patch height height in pixels
+         * @param {{ x: number, y: number }} [options.patchBottomLeft] Bottom left corner of the patch        
+         * @param {{ x: number, y: number }} [options.patchBottomRight] Bottom right corner of the patch        
+         * @param {{ x: number, y: number }} [options.patchTopLeft] Top left corner of the patch        
+         * @param {{ x: number, y: number }} [options.patchTopRight] Top right corner of the patch        
          */
-        reset(patchWidth, patchHeight, backgroundWidth, backgroundHeight) {
-            this.backgroundWidth = backgroundWidth;
-            this.backgroundHeight = backgroundHeight;
-            this.patchWidth = patchWidth;
-            this.patchHeight = patchHeight;
+        reset(options) {
 
-            // Create initial patch
+            options = Object.assign({
+                backgroundWidth: 1024,
+                backgroundHeight: 768,
+                patchWidth: 640,
+                patchHeight: 640,
+                patchBottomLeft: null,
+                patchBottomRight: null,
+                patchTopLeft: null,
+                patchTopRight: null
+            }, options);
+
+
+            this.backgroundWidth = options.backgroundWidth;
+            this.backgroundHeight = options.backgroundHeight;
+
+            let bgWidth = options.backgroundWidth,
+                bgHeight = options.backgroundHeight,
+                pWidth = options.patchWidth,
+                pHeight = options.patchHeight,
+                pBottomLeft = options.patchBottomLeft,
+                pBottomRight = options.patchBottomRight,
+                pTopLeft = options.patchTopLeft,
+                pTopRight = options.patchTopRight;
+
+            let checkCorners = (...corners) => {
+                return corners.reduce((prev, c) => {
+                    return prev && c !== null && typeof c === "object" && typeof c.x === "number" && typeof c.y === "number";
+                }, true);
+            };
+
             {
+                let bl, br, tl, tr;
 
-                let bl = buffers.vec3[0].set((backgroundWidth - patchWidth) / 2, (backgroundHeight - patchHeight) / 2);
-                let br = buffers.vec3[1].set((backgroundWidth - patchWidth) / 2 + patchWidth, (backgroundHeight - patchHeight) / 2);
-                let tl = buffers.vec3[2].set((backgroundWidth - patchWidth) / 2, (backgroundHeight - patchHeight) / 2 + patchHeight);
-                let tr = buffers.vec3[3].set((backgroundWidth - patchWidth) / 2 + patchWidth, (backgroundHeight - patchHeight) / 2 + patchHeight);
+
+                if (checkCorners(pTopLeft, pTopRight, pBottomLeft, pBottomRight)) {
+                    bl = buffers.vec3[0].set(pBottomLeft.x, pBottomLeft.y, 0);
+                    br = buffers.vec3[1].set(pBottomRight.x, pBottomRight.y, 0);
+                    tl = buffers.vec3[2].set(pTopLeft.x, pTopLeft.y, 0);
+                    tr = buffers.vec3[3].set(pTopRight.x, pTopRight.y, 0);
+
+                } else {
+
+                    bl = buffers.vec3[0].set((bgWidth - pWidth) / 2, (bgHeight - pHeight) / 2, 0);
+                    br = buffers.vec3[1].set((bgWidth - pWidth) / 2 + pWidth, (bgHeight - pHeight) / 2, 0);
+                    tl = buffers.vec3[2].set((bgWidth - pWidth) / 2, (bgHeight - pHeight) / 2 + pHeight, 0);
+                    tr = buffers.vec3[3].set((bgWidth - pWidth) / 2 + pWidth, (bgHeight - pHeight) / 2 + pHeight, 0);
+
+                }
 
                 this.patch.initFromCorners(tl, tr, bl, br);
+
             }
 
-
-            // Reset the camera
+            // Reset the camera and zoom
             this.cameraOrigin.set(0, 0);
+            this.zoom = 1;
 
             // Reset history and create initial state
             this.createHistory();
@@ -1360,9 +1414,7 @@
             this.meshes = {};
 
             // Initialize three.js scene
-
             this.scene = new THREE.Scene();
-            this.camera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1, 1);
 
             // Init grid points buffer;
             this.gridPoints = new Array(gw * gh);
@@ -1518,7 +1570,9 @@
             // Key state info
             this.keystate = {};
 
+            // Camera
             this.cameraOrigin = new THREE.Vector3();
+            this.camera = new THREE.OrthographicCamera(-1, 1, -1, 1, -1, 1);
 
 
             // Init three.js renderer

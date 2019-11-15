@@ -20,9 +20,11 @@
 - [X] ~~*can we change the zooming behavior, so the component zooms to the cursor position and not the canvas center (for example like the google maps)*~~ [2019-11-07]
 - [X] ~~*could we set the pan boundaries*~~ [2019-11-11]
 - [ ] Sensitivity of inner grid points
+- [X] ~~*it would be great to add the optional „corners“ property into the component constructor. That way we could customize, where the new patch appears on the canvas. At the moment it’s automatically centered.*~~ [2019-11-14]
 
 
 ## Hours
 - Customize inner grid: 0.75
 - New linear/bezier switch behavior: 1
-- New zooming behavior: 0.25
+- New zooming behavior: 0.5
+- Patch from corners: 0.25
