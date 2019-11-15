@@ -1919,6 +1919,10 @@
                 linesPositions.needsUpdate = true;
                 planePositions.needsUpdate = true;
 
+                this.meshes.plane.geometry.computeBoundingSphere();
+                this.meshes.plane.geometry.computeBoundingBox();
+
+
             }
 
 
@@ -1929,6 +1933,7 @@
          * @private
          */
         updateProjectionMatrix() {
+
             let [w, h] = [this.container.clientWidth, this.container.clientHeight];
             let a = w / h;
 
@@ -2040,7 +2045,7 @@
          */
         intersectMesh(ndc) {
             this.raycaster.setFromCamera(ndc, this.camera);
-            let intersects = this.raycaster.intersectObject(this.meshes.plane);
+            let intersects = this.raycaster.intersectObject(this.meshes.plane, true);
             if (intersects.length === 1) {
                 let u = intersects[0].uv.x;
                 let v = intersects[0].uv.y;
@@ -2165,6 +2170,7 @@
          * @param {MouseEvent} evt The event
          */
         mousemove(evt) {
+
             this.updateMousePosition(evt);
 
             this.selectionRect = null;
