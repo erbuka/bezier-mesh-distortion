@@ -550,7 +550,7 @@
          * Creates the DOM element associated with this control point
          */
         create() {
-            this.domElement.classList.add("bm-handle");
+            this.domElement.classList.add("bm-control-point");
             this.domElement.addEventListener("mousedown", (evt) => { evt.bmControlPoint = this; })
             this.domElement.addEventListener("mouseup", (evt) => { evt.bmControlPoint = this; })
             this.ownerProjection.container.appendChild(this.domElement);
@@ -741,6 +741,7 @@
                 }
             });
 
+            // Assemble export data
             let controlPoints = [];
             let patches = [];
 
@@ -766,6 +767,9 @@
 
                 patches.push(patchData);
             });
+
+            // Clear references
+            this.bezierPatches.forEach(patch => patch.controlPoints.forEach(c => delete c["$ref"]));
 
             return {
                 rows: this.bezierPatches.rowCount,
@@ -1132,6 +1136,32 @@
             }
         }
 
+
+        computeAutomaticControlPoints() {
+
+            let cp = this.controlPoints;
+
+            // Autocompute outline CPS
+            cp[1].copy(cp[0]).lerp(cp[3], 1 / 3);
+            cp[2].copy(cp[0]).lerp(cp[3], 2 / 3);
+
+            cp[4].copy(cp[0]).lerp(cp[12], 1 / 3);
+            cp[8].copy(cp[0]).lerp(cp[12], 2 / 3);
+
+            cp[13].copy(cp[12]).lerp(cp[15], 1 / 3);
+            cp[14].copy(cp[12]).lerp(cp[15], 2 / 3);
+
+            cp[7].copy(cp[3]).lerp(cp[15], 1 / 3);
+            cp[11].copy(cp[3]).lerp(cp[15], 2 / 3);
+
+
+            // Auto compute mid points
+            cp[5].copy(cp[4]).lerp(cp[7], 1 / 3);
+            cp[6].copy(cp[4]).lerp(cp[7], 2 / 3);
+            cp[9].copy(cp[8]).lerp(cp[11], 1 / 3);
+            cp[10].copy(cp[8]).lerp(cp[11], 2 / 3);
+        }
+
         /**
          * Updates this patch
          */
@@ -1140,50 +1170,13 @@
             let cp = this.controlPoints;
             const mode = this.ownerProjection.options.mode;
 
-            cp.forEach(p => p.visible = false);
-
-            if (!this.ownerProjection.previewMode) {
-                if (mode === "linear") {
-                    cp[0].visible = true;
-                    cp[3].visible = true;
-                    cp[12].visible = true;
-                    cp[15].visible = true;
-
-
-                    // Autocompute outline CPS
-
-                    cp[1].copy(cp[0]).lerp(cp[3], 1 / 3);
-                    cp[2].copy(cp[0]).lerp(cp[3], 2 / 3);
-
-                    cp[4].copy(cp[0]).lerp(cp[12], 1 / 3);
-                    cp[8].copy(cp[0]).lerp(cp[12], 2 / 3);
-
-                    cp[13].copy(cp[12]).lerp(cp[15], 1 / 3);
-                    cp[14].copy(cp[12]).lerp(cp[15], 2 / 3);
-
-                    cp[7].copy(cp[3]).lerp(cp[15], 1 / 3);
-                    cp[11].copy(cp[3]).lerp(cp[15], 2 / 3);
-
-
-
-                    // Auto compute mid points
-
-                    cp[5].copy(cp[4]).lerp(cp[7], 1 / 3);
-                    cp[6].copy(cp[4]).lerp(cp[7], 2 / 3);
-                    cp[9].copy(cp[8]).lerp(cp[11], 1 / 3);
-                    cp[10].copy(cp[8]).lerp(cp[11], 2 / 3);
-
-                } else if (mode === "bezier") { // bezier
-                    cp.forEach(p => p.visible = true);
-                } else {
-                    throw new Error("Invalid patch mode: " + this.ownerProjection.options.mode);
-                }
+            if (mode === "linear") {
+                // Autocompute outline CPS
+                this.computeAutomaticControlPoints();
             }
 
 
             cp.forEach(p => p.update());
-
-
         }
 
         /**
@@ -1275,8 +1268,8 @@
          * @param {object} savedInstance The patch to be restored
          */
         restore(savedInstance) {
-            this.reset({ 
-                backgroundWidth: savedInstance.backgroundWidth, 
+            this.reset({
+                backgroundWidth: savedInstance.backgroundWidth,
                 backgroundHeight: savedInstance.backgroundHeight
             });
             this.patch.restore(savedInstance.patchData);
@@ -1526,11 +1519,6 @@
 
             }
 
-
-
-            this.meshes.gridLines.visible = !this.previewMode;
-
-
             this.reshape();
 
         }
@@ -1647,15 +1635,36 @@
          */
         updateUI() {
 
-            // Do not draw UI in previewMode
-            if (this.previewMode)
-                return;
-
             // Compute control point size for optimization
             {
-                let cpElement = document.querySelector(".bm-handle");
+                let cpElement = document.querySelector(".bm-control-point");
                 this.computedControlPointWidth = cpElement ? cpElement.clientWidth : 0;
                 this.computedControlPointHeight = cpElement ? cpElement.clientHeight : 0;
+            }
+
+            // Control points visibility
+            {
+
+
+                for (let p of this.patch.bezierPatches)
+                    for (let c of p.controlPoints)
+                        c.visible = false;
+
+                if (this.selectedTool === Tools.Arrow) {
+                    if (this.options.mode === "bezier") {
+                        for (let p of this.patch.bezierPatches)
+                            for (let c of p.controlPoints)
+                                c.visible = true;
+                    } else if (this.options.mode === "linear") {
+                        for (let p of this.patch.bezierPatches) {
+                            p.controlPoints[0].visible = true;
+                            p.controlPoints[3].visible = true;
+                            p.controlPoints[12].visible = true;
+                            p.controlPoints[15].visible = true;
+                        }
+                    }
+                }
+
             }
 
             let ctx = this.uiCanvas.getContext("2d");
