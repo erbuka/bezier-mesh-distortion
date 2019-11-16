@@ -732,50 +732,51 @@
                 return JSON.parse(JSON.stringify(o));
             }
 
-            // 1 . Set control points reference
+            // 1. Set control points reference + create distinct array
             let refCount = 0;
-            this.bezierPatches.forEach(patch => {
-                for (let point of patch.controlPoints) {
-                    point["$ref"] = refCount;
-                    refCount++;
-                }
-            });
-
-            // Assemble export data
             let controlPoints = [];
-            let patches = [];
-
             this.bezierPatches.forEach(patch => {
-
-                let patchData = {
-                    controlPoints: [],
-                    domain: serialize(patch.domain)
-                };
-
                 for (let point of patch.controlPoints) {
-                    let p = {
-                        x: point.x,
-                        y: point.y,
-                        z: point.z,
-                        mirrorPoint: point.mirrorPoint ?
-                            { other: ref(point.mirrorPoint.other), reference: ref(point.mirrorPoint.reference) } :
-                            null
+                    if (point["$ref"] === undefined) {
+                        point["$ref"] = refCount;
+                        controlPoints.push(point);
+                        refCount++;
                     }
-                    controlPoints.push(p);
-                    patchData.controlPoints.push(ref(point));
                 }
-
-                patches.push(patchData);
             });
+
+
+            // 2. Create control points export data 
+            let controlPointsData = [];
+            controlPoints.forEach(point => {
+                controlPointsData.push({
+                    x: point.x,
+                    y: point.y,
+                    z: point.z,
+                    mirrorPoint: point.mirrorPoint ?
+                        { other: ref(point.mirrorPoint.other), reference: ref(point.mirrorPoint.reference) } :
+                        null
+                });
+            });
+
+            // Assemble patch export data
+            let patchesData = [];
+            this.bezierPatches.forEach(patch => {
+                patchesData.push({
+                    controlPoints: patch.controlPoints.map(p => ref(p)),
+                    domain: serialize(patch.domain)
+                });
+            });
+
 
             // Clear references
-            this.bezierPatches.forEach(patch => patch.controlPoints.forEach(c => delete c["$ref"]));
+            controlPoints.forEach(p => delete p["$ref"]);
 
             return {
                 rows: this.bezierPatches.rowCount,
                 cols: this.bezierPatches.colCount,
-                patches: patches,
-                controlPoints: controlPoints
+                patches: patchesData,
+                controlPoints: controlPointsData
             }
 
         }
@@ -788,12 +789,13 @@
 
             this.dispose();
 
+            // Create new grid
             this.bezierPatches = new Grid(savedInstance.rows, savedInstance.cols);
 
-            let controlPoints = savedInstance.controlPoints.map(p => {
-                return new ControlPoint(this.ownerProjection, p.x, p.y, p.z);
-            })
+            // Create distinct control points array
+            let controlPoints = savedInstance.controlPoints.map(p => new ControlPoint(this.ownerProjection, p.x, p.y, p.z));
 
+            // Restore mirror points
             for (let i = 0; i < controlPoints.length; i++) {
                 let cpData = savedInstance.controlPoints[i];
                 if (cpData.mirrorPoint) {
@@ -804,9 +806,10 @@
                 }
             }
 
+            // Restore patches
             let i = 0;
             for (let patchData of savedInstance.patches) {
-                let cps = patchData.controlPoints.map(i => controlPoints[i]);
+                let cps = patchData.controlPoints.map(x => controlPoints[x]);
                 let row = Math.floor(i / savedInstance.cols);
                 let col = i % savedInstance.cols;
                 this.bezierPatches.set(row, col, new BezierPatch3(
