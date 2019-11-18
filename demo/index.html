@@ -74,7 +74,6 @@
             optionsFolder.addColor(options, "primaryColor").onChange(changeHandler).listen();
             optionsFolder.addColor(options, "secondaryColor").onChange(changeHandler).listen();
 
-            toolsFolder.add(projection, "previewMode").onChange(changeHandler).listen();
             toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut", "Transform", "Pan"]).listen();
             for (let f in functions)
                 toolsFolder.add(functions, f);
@@ -133,8 +132,6 @@
                 evt.preventDefault();
                 evt.stopPropagation();
             });
-
-            window["proj"] = projection;
 
         });
 

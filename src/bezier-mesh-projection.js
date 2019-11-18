@@ -262,7 +262,7 @@
                 translateHandle.style.width = Constants.TranslateHandleSize + "px";
                 translateHandle.style.height = Constants.TranslateHandleSize + "px";
                 translateHandle.addEventListener("mousedown", (evt) => evt.bmTranslateHandle = this);
-                
+
 
                 this.translateHandle = translateHandle;
                 this.ownerProjection.container.appendChild(translateHandle);
@@ -1655,9 +1655,6 @@
             // Main container
             this.container = document.querySelector(container);
 
-            // Preview mode
-            this.previewMode = false;
-
             // Selected tool
             this.selectedTool = Tools.Arrow;
 
@@ -1769,6 +1766,8 @@
                     for (let c of p.controlPoints)
                         c.visible = false;
 
+                // Control points are hidden if the current tool is not the Arrow, or
+                // if the preview mode is on
                 if (this.selectedTool === Tools.Arrow) {
                     if (this.options.mode === "bezier") {
                         for (let p of this.patch.bezierPatches)
@@ -1788,6 +1787,7 @@
 
 
             // Update transform tool
+            // Tool is not visible if the preview mode is on
             this.transformTool.visible = this.selectedTool === Tools.Transform;
             this.transformTool.copy(this.patch.compute(0.5, 0.5, "bezier"));
             this.transformTool.update();
