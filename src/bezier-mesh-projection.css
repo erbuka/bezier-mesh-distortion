@@ -2,20 +2,45 @@
   background-color: black;
   overflow: hidden;
   position: relative;
-  transform: translate3d(0, 0, 0);
 }
 
 .bm-canvas .bm-control-point {
   position: absolute;
   border-radius: 50%;
   z-index: 1;
-  width: 8px;
-  height: 8px;
   box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-.bm-canvas .bm-control-point.bm-selected {
+.bm-canvas .bm-transform-tool-background {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border-style: solid;
+  border-width: 2px;
+  z-index: 1;
+  background-color: rgba(0, 0, 0, 0.5);
 }
+
+.bm-canvas .bm-translate-handle {
+  position: absolute;
+  border-radius: 50%;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  border-style: solid;
+  border-width: 2px;
+  box-sizing: border-box;
+  z-index: 2;
+}
+
+.bm-canvas .bm-rotate-handle {
+  box-sizing: border-box;
+  position: absolute;
+  border-radius: 50%;
+  border-style: solid;
+  border-width: 2px;
+  box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+
 
 .bm-canvas canvas {
   display: block;

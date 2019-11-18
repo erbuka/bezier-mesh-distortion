@@ -75,7 +75,7 @@
             optionsFolder.addColor(options, "secondaryColor").onChange(changeHandler).listen();
 
             toolsFolder.add(projection, "previewMode").onChange(changeHandler).listen();
-            toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut", "Pan"]).listen();
+            toolsFolder.add(projection, "selectedTool", ["Arrow", "Horizontal Cut", "Vertical Cut", "Transform", "Pan"]).listen();
             for (let f in functions)
                 toolsFolder.add(functions, f);
 
@@ -124,11 +124,8 @@
                         case "KeyA":
                             projection.selectedTool = "Vertical Cut";
                             break;
-                        case "KeyQ":
-                            projection.alignSelectedPoints(true);
-                            break;
-                        case "KeyW":
-                            projection.alignSelectedPoints(false);
+                        case "KeyE":
+                            projection.selectedTool = "Transform";
                             break;
                     }
                 }

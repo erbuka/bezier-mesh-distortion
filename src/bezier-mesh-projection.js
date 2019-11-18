@@ -1,4 +1,3 @@
-
 (function (exportObj, exportName) {
     "use strict";
 
@@ -24,6 +23,13 @@
         VerticalCut: "Vertical Cut",
         Pan: "Pan",
         Transform: "Transform"
+    }
+
+    const Constants = {
+        RotateToolRadius: 100,
+        TranslateHandleSize: 32,
+        RotateHandleSize: 32,
+        ControlPointSize: 8
     }
 
     /**
@@ -191,6 +197,110 @@
                 this.texturesMap[t].dispose();
             this.texturesMap = {};
         }
+
+    }
+
+    class TransformTool extends THREE.Vector3 {
+        constructor(ownerProjection) {
+            super(0, 0, 0);
+            this.ownerProjection = ownerProjection;
+            this.direction = new THREE.Vector2(0, 1);
+            this.create();
+        }
+
+        set visible(value) {
+            let display = value ? "block" : "none";
+            this.translateHandle.style.display =
+                this.rotateHandle.style.display =
+                this.background.style.display = display;
+        }
+
+        get visible() {
+            return this.translateHandle.style.display === "block";
+        }
+
+        newDirection(screenPoint) {
+
+            let a0 = this.direction.angle();
+
+            this.direction
+                .copy(screenPoint)
+                .sub(this.ownerProjection.worldToScreen(this))
+                .normalize();
+
+            let a1 = this.direction.angle();
+
+            return a1 - a0;
+
+        }
+
+        update() {
+            let screenPos = this.ownerProjection.worldToScreen(this);
+
+            this.translateHandle.style.left = (screenPos.x - Constants.TranslateHandleSize / 2) + "px";
+            this.translateHandle.style.top = (screenPos.y - Constants.TranslateHandleSize / 2) + "px";
+            this.translateHandle.style.backgroundColor = this.ownerProjection.options.primaryColor;
+            this.translateHandle.style.borderColor = this.ownerProjection.options.secondaryColor;
+
+            this.rotateHandle.style.left = (screenPos.x + this.direction.x * Constants.RotateToolRadius - Constants.RotateHandleSize / 2) + "px";
+            this.rotateHandle.style.top = (screenPos.y + this.direction.y * Constants.RotateToolRadius - Constants.RotateHandleSize / 2) + "px";
+            this.rotateHandle.style.backgroundColor = this.ownerProjection.options.secondaryColor;
+            this.rotateHandle.style.borderColor = this.ownerProjection.options.primaryColor;
+
+            this.background.style.left = (screenPos.x - Constants.RotateToolRadius) + "px";
+            this.background.style.top = (screenPos.y - Constants.RotateToolRadius) + "px";
+            this.background.style.borderColor = this.ownerProjection.options.primaryColor;
+
+
+        }
+
+        create() {
+            // Translate handle
+            {
+                let translateHandle = document.createElement("div");
+                translateHandle.classList.add("bm-translate-handle");
+                translateHandle.style.width = Constants.TranslateHandleSize + "px";
+                translateHandle.style.height = Constants.TranslateHandleSize + "px";
+                translateHandle.addEventListener("mousedown", (evt) => evt.bmTranslateHandle = this);
+                
+
+                this.translateHandle = translateHandle;
+                this.ownerProjection.container.appendChild(translateHandle);
+            }
+
+            // Rotate handle 
+            {
+                let rotateHandle = document.createElement("div");
+                rotateHandle.classList.add("bm-rotate-handle");
+                rotateHandle.style.width = Constants.RotateHandleSize + "px";
+                rotateHandle.style.height = Constants.RotateHandleSize + "px";
+                rotateHandle.addEventListener("mousedown", (evt) => evt.bmRotateHandle = this);
+
+                this.rotateHandle = rotateHandle;
+                this.ownerProjection.container.appendChild(rotateHandle);
+
+            }
+
+            // Background
+            {
+                let background = document.createElement("div");
+                background.classList.add("bm-transform-tool-background");
+                background.style.width = Constants.RotateToolRadius * 2 + "px";
+                background.style.height = Constants.RotateToolRadius * 2 + "px";
+
+                this.background = background;
+                this.ownerProjection.container.appendChild(background);
+
+            }
+
+        }
+
+        dispose() {
+            this.ownerProjection.container.removeChild(this.translateHandle);
+            this.ownerProjection.container.removeChild(this.rotateHandle);
+            this.ownerProjection.container.removeChild(this.background);
+        }
+
 
     }
 
@@ -540,8 +650,8 @@
             let color = this.ownerProjection.selectedControlPoints.includes(this) ?
                 this.ownerProjection.options.secondaryColor : this.ownerProjection.options.primaryColor;
 
-            this.domElement.style.left = (screenPos.x - this.ownerProjection.computedControlPointWidth / 2) + "px";
-            this.domElement.style.top = (screenPos.y - this.ownerProjection.computedControlPointHeight / 2) + "px";
+            this.domElement.style.left = (screenPos.x - Constants.ControlPointSize / 2) + "px";
+            this.domElement.style.top = (screenPos.y - Constants.ControlPointSize / 2) + "px";
             this.domElement.style.backgroundColor = color;
         }
 
@@ -551,6 +661,8 @@
          */
         create() {
             this.domElement.classList.add("bm-control-point");
+            this.domElement.style.width = Constants.ControlPointSize + "px";
+            this.domElement.style.height = Constants.ControlPointSize + "px";
             this.domElement.addEventListener("mousedown", (evt) => { evt.bmControlPoint = this; })
             this.domElement.addEventListener("mouseup", (evt) => { evt.bmControlPoint = this; })
             this.ownerProjection.container.appendChild(this.domElement);
@@ -643,6 +755,25 @@
 
         }
 
+        rotateZ(pivot, angle) {
+
+            let mat4 = () => new THREE.Matrix4();
+
+            let matrix = mat4()
+                .makeTranslation(pivot.x, pivot.y, pivot.z)
+                .multiply(mat4().makeRotationZ(angle))
+                .multiply(mat4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+
+            for (let p of this.allControlPoints)
+                p.applyMatrix4(matrix);
+
+        }
+
+        translate(offset) {
+            for (let p of this.allControlPoints)
+                p.add(offset);
+        }
+
         /**
          * Disposes the resources associated with this patch
          */
@@ -653,14 +784,21 @@
         }
 
         /**
-         * Recreates all the links for all the control points
+         * Recreates all the links for all the control points.
          */
         relinkControlPoints() {
+
+            // Create unique array of control points (for performance purposes)
+            this.allControlPoints = []
+            for (let p of this.bezierPatches)
+                for (let c of p.controlPoints)
+                    if (!this.allControlPoints.includes(c))
+                        this.allControlPoints.push(c);
+
+
             for (let p of this.bezierPatches) {
                 let cp = p.controlPoints;
-                cp.forEach(cp => {
-                    cp.mirror(null, null);
-                });
+                cp.forEach(c => c.mirror(null, null));
             }
 
             for (let i = 0; i < this.bezierPatches.rowCount; i++) {
@@ -732,32 +870,23 @@
                 return JSON.parse(JSON.stringify(o));
             }
 
-            // 1. Set control points reference + create distinct array
+            // 1. Create control points reference + export data
             let refCount = 0;
-            let controlPoints = [];
+            let controlPointsData = [];
             this.bezierPatches.forEach(patch => {
                 for (let point of patch.controlPoints) {
                     if (point["$ref"] === undefined) {
                         point["$ref"] = refCount;
-                        controlPoints.push(point);
+                        controlPointsData.push({
+                            x: point.x,
+                            y: point.y,
+                            z: point.z
+                        });
                         refCount++;
                     }
                 }
             });
 
-
-            // 2. Create control points export data 
-            let controlPointsData = [];
-            controlPoints.forEach(point => {
-                controlPointsData.push({
-                    x: point.x,
-                    y: point.y,
-                    z: point.z,
-                    mirrorPoint: point.mirrorPoint ?
-                        { other: ref(point.mirrorPoint.other), reference: ref(point.mirrorPoint.reference) } :
-                        null
-                });
-            });
 
             // Assemble patch export data
             let patchesData = [];
@@ -770,7 +899,7 @@
 
 
             // Clear references
-            controlPoints.forEach(p => delete p["$ref"]);
+            this.bezierPatches.forEach(p => p.controlPoints.forEach(c => delete c["$ref"]));
 
             return {
                 rows: this.bezierPatches.rowCount,
@@ -795,17 +924,6 @@
             // Create distinct control points array
             let controlPoints = savedInstance.controlPoints.map(p => new ControlPoint(this.ownerProjection, p.x, p.y, p.z));
 
-            // Restore mirror points
-            for (let i = 0; i < controlPoints.length; i++) {
-                let cpData = savedInstance.controlPoints[i];
-                if (cpData.mirrorPoint) {
-                    controlPoints[i].mirror(
-                        controlPoints[cpData.mirrorPoint.other],
-                        controlPoints[cpData.mirrorPoint.reference]
-                    );
-                }
-            }
-
             // Restore patches
             let i = 0;
             for (let patchData of savedInstance.patches) {
@@ -819,6 +937,8 @@
                 ));
                 ++i;
             }
+
+            this.relinkControlPoints();
 
         }
 
@@ -1541,6 +1661,9 @@
             // Selected tool
             this.selectedTool = Tools.Arrow;
 
+            // Transform tool
+            this.transformTool = new TransformTool(this);
+
             // Zoom
             this.zoomValue = 1;
 
@@ -1638,16 +1761,9 @@
          */
         updateUI() {
 
-            // Compute control point size for optimization
-            {
-                let cpElement = document.querySelector(".bm-control-point");
-                this.computedControlPointWidth = cpElement ? cpElement.clientWidth : 0;
-                this.computedControlPointHeight = cpElement ? cpElement.clientHeight : 0;
-            }
 
             // Control points visibility
             {
-
 
                 for (let p of this.patch.bezierPatches)
                     for (let c of p.controlPoints)
@@ -1669,6 +1785,12 @@
                 }
 
             }
+
+
+            // Update transform tool
+            this.transformTool.visible = this.selectedTool === Tools.Transform;
+            this.transformTool.copy(this.patch.compute(0.5, 0.5, "bezier"));
+            this.transformTool.update();
 
             let ctx = this.uiCanvas.getContext("2d");
             let [w, h] = [this.uiCanvas.width, this.uiCanvas.height];
@@ -2163,6 +2285,7 @@
                 }
             }
 
+
             this.dragInfo = {
                 position: new THREE.Vector3().copy(this.mouse.position),
                 world: new THREE.Vector3().copy(this.screenToWorld(
@@ -2170,8 +2293,11 @@
                     this.mouse.position.y
                 )),
                 patchData: this.patch.save(),
-                controlPoint: !!evt.bmControlPoint
+                controlPoint: !!evt.bmControlPoint,
+                translateHandle: !!evt.bmTranslateHandle,
+                rotateHandle: !!evt.bmRotateHandle
             }
+
 
             evt.preventDefault();
         }
@@ -2187,6 +2313,7 @@
 
             this.selectionRect = null;
 
+            // Arrow
             if (this.selectedTool === Tools.Arrow) {
                 if (this.dragInfo && (this.mouse.leftButtonDown || this.mouse.rightButtonDown)) {
                     if (this.dragInfo.controlPoint) {
@@ -2204,6 +2331,18 @@
                 }
             }
 
+            // Transform
+            if (this.selectedTool === Tools.Transform && this.dragInfo && this.mouse.leftButtonDown) {
+                if (this.dragInfo.translateHandle) {
+                    let offset = this.mouse.world.clone().sub(this.mouse.prev.world);
+                    this.patch.translate(offset);
+                } else if (this.dragInfo.rotateHandle) {
+                    let angle = this.transformTool.newDirection(this.mouse.position);
+                    this.patch.rotateZ(this.transformTool, -angle);
+                }
+            }
+
+            // Pan
             if (this.selectedTool === Tools.Pan && this.mouse.leftButtonDown) {
                 let offset = buffers.vec3[0].copy(this.dragInfo.world).sub(this.mouse.world);
                 this.cameraOrigin.add(offset);
@@ -2248,6 +2387,10 @@
                     if (this.dragInfo.position.distanceTo(this.mouse.position) > 0) {
                         this.saveHistory();
                     }
+                }
+            } else if (this.selectedTool === Tools.Transform) {
+                if (this.dragInfo.position.distanceTo(this.mouse.position) > 0) {
+                    this.saveHistory();
                 }
             }
 

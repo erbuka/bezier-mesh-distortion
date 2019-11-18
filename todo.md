@@ -12,11 +12,12 @@
 - [X] ~~*Color refactoring*~~ [2019-10-09]
 - [X] ~~*Optimize for speed iteration 1*~~ [2019-10-09]
 - [ ] Optimize for speed iteration 2
+    - Reduce style computation (set visible)
 - [ ] Update documentation
 - [X] ~~*Inner grid always squared*~~ [2019-11-07]
 - [X] ~~*when the component is in linear mode, only 4 corner points should be visible ( center control points and bezier handles could be hidden)*~~ [2019-11-09]
 - [X] ~~*when you switch from linear to bezier mode, the grid handles should align/reset to „default state“*~~ [2019-11-09]
-- [ ] could you please add two additional handles to the linear mode like this - one that would move the whole patch around while the other would rotate the patch
+- [X] ~~*could you please add two additional handles to the linear mode like this - one that would move the whole patch around while the other would rotate the patch*~~ [2019-11-16]
 - [X] ~~*can we change the zooming behavior, so the component zooms to the cursor position and not the canvas center (for example like the google maps)*~~ [2019-11-07]
 - [X] ~~*could we set the pan boundaries*~~ [2019-11-11]
 - [ ] Sensitivity of inner grid points
