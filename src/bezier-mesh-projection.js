@@ -2062,10 +2062,20 @@
 
         }
 
+        /**
+         * Adjusts the zoom and the camera position to completely contain the background rectangle
+         */
         fitBackground() {
             this.fitBounds(0, 0, this.backgroundWidth, this.backgroundHeight);
         }
-
+        /**
+         * Adjusts the zoom and the camera position to completely contain the given rectangle in
+         * world coordinates
+         * @param {number} x rectangle x 
+         * @param {number} y rectangle y
+         * @param {number} w rectangle width
+         * @param {number} h rectangle height
+         */
         fitBounds(x, y, w, h) {
             let [cw, ch] = [this.container.clientWidth, this.container.clientHeight];
             let a = w / h;
