@@ -2062,6 +2062,34 @@
 
         }
 
+        fitBackground() {
+            this.fitBounds(0, 0, this.backgroundWidth, this.backgroundHeight);
+        }
+
+        fitBounds(x, y, w, h) {
+            let [cw, ch] = [this.container.clientWidth, this.container.clientHeight];
+            let a = w / h;
+            let ca = cw / ch;
+
+            let vh = 3 * this.backgroundHeight;
+
+            if (ca >= a) { // Adapt height
+                this.zoom = vh / h;
+                let v = this.screenToWorld(cw, 0).sub(this.screenToWorld(0, 0));
+                this.cameraOrigin.x = x - (v.x - w) / 2;
+                this.cameraOrigin.y = y;
+
+            } else { // Adapt width
+                this.zoom = (ca * vh) / w;
+                let v = this.screenToWorld(0, 0).sub(this.screenToWorld(0, ch));
+                this.cameraOrigin.x = x;
+                this.cameraOrigin.y = y - (v.y - h) / 2;
+            }
+
+            this.updateProjectionMatrix();
+
+        }
+
         /**
          * Updates the projection matrix
          * @private
@@ -2310,6 +2338,8 @@
         mousemove(evt) {
 
             this.updateMousePosition(evt);
+
+            console.log(this.mouse.world);
 
             this.selectionRect = null;
 
